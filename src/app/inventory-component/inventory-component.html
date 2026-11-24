@@ -163,7 +163,7 @@
                     <div class="inv_form_grid">
                         <label class="inv_field">
                             <span>ID / Barcode</span>
-                            <input type="number" name="id" inputmode="numeric" min="1" step="1"
+                            <input type="text" name="id" min="1" step="1"
                                    [(ngModel)]="draft.id" [readonly]="mode() === 'edit'"
                                    [attr.aria-invalid]="submitted && errors.id ? 'true' : null">
                             @if (submitted && errors.id) { <small class="inv_error">{{ errors.id }}</small> }

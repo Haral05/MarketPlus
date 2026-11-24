@@ -1,6 +1,7 @@
 import { Injectable, effect, signal } from '@angular/core';
 
 export type PaymentMethod = 'cash' | 'card';
+export type SaleStatus = 'completed' | 'refunded';
 
 export interface SaleItem {
   id: number;       // ID / código de barras del producto
@@ -10,8 +11,8 @@ export interface SaleItem {
 }
 
 export interface Sale {
-  id: string;                    // 'TRX-00012'
-  number: number;                // 12
+  id: string;                    // 'TRX-00012' (las de ejemplo: 'DEMO-00012')
+  number: number;
   date: Date;
   items: SaleItem[];
   subtotal: number;
@@ -22,6 +23,8 @@ export interface Sale {
   method: PaymentMethod;
   cashReceived: number | null;
   change: number;
+  status: SaleStatus;
+  refundedAt?: Date;
   demo?: boolean;                // true = dato de ejemplo
 }
 
@@ -38,27 +41,43 @@ export interface NewSale {
 }
 
 interface StoredHistory {
+  version?: number;
   next: number;
+  demoRemoved?: boolean;
   sales: Sale[];   // las fechas se guardan como texto ISO y se reconvierten al cargar
 }
 
 const STORAGE_KEY = 'marketplus-sales-history';
 
-/** Pon esto en false cuando ya no quieras datos de ejemplo la primera vez que se abre el historial. */
+/** Pon esto en false si no quieres datos de ejemplo. */
 const SEED_DEMO = true;
+
+/**
+ * Sube este número cuando cambies los datos de ejemplo:
+ * al cargar, las ventas de ejemplo antiguas se sustituyen por las nuevas
+ * y las ventas reales NO se tocan.
+ */
+const SEED_VERSION = 2;
 
 @Injectable({ providedIn: 'root' })
 export class SalesHistoryService {
   private next = 1;
+  private demoRemoved = false;
 
   readonly sales = signal<Sale[]>(this.load());
 
   constructor() {
-    // Guarda cada cambio (venta nueva, venta eliminada...)
+    // Guarda cada cambio (venta nueva, reembolso, eliminación...)
     effect(() => {
       const sales = this.sales();
+      const data: StoredHistory = {
+        version: SEED_VERSION,
+        next: this.next,
+        demoRemoved: this.demoRemoved,
+        sales,
+      };
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ next: this.next, sales }));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       } catch { /* almacenamiento no disponible */ }
     });
   }
@@ -76,36 +95,61 @@ export class SalesHistoryService {
       number,
       date: new Date(),
       change,
+      status: 'completed',
     };
     this.sales.update(list => [sale, ...list]);
     return sale;
   }
 
+  /** Marca la venta como reembolsada: se conserva en el historial pero deja de contar como ingreso. */
+  refund(id: string): void {
+    this.sales.update(list => list.map(s =>
+      s.id === id && s.status === 'completed'
+        ? { ...s, status: 'refunded' as const, refundedAt: new Date() }
+        : s));
+  }
+
+  /** Borra la venta del historial (para errores de registro). */
   remove(id: string): void {
     this.sales.update(list => list.filter(s => s.id !== id));
   }
 
   clearDemo(): void {
+    this.demoRemoved = true;
     this.sales.update(list => list.filter(s => !s.demo));
   }
 
-  // ───────── Carga y datos de ejemplo ─────────
+  // ───────── Carga ─────────
+  private revive(s: Sale): Sale {
+    return {
+      ...s,
+      date: new Date(s.date),
+      status: s.status ?? 'completed',                       // ventas guardadas antes de existir los reembolsos
+      refundedAt: s.refundedAt ? new Date(s.refundedAt) : undefined,
+    };
+  }
+
   private load(): Sale[] {
+    let stored: StoredHistory | null = null;
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const data = JSON.parse(raw) as StoredHistory;
-        this.next = data.next ?? 1;
-        return (data.sales ?? []).map(s => ({ ...s, date: new Date(s.date) }));
-      }
-    } catch { /* se ignora y se sigue con los valores por defecto */ }
+      if (raw) stored = JSON.parse(raw) as StoredHistory;
+    } catch { /* se ignora */ }
 
-    if (SEED_DEMO) {
-      const seeded = this.seed();
-      this.next = seeded.length + 1;
-      return seeded;
+    if (stored) {
+      this.next = stored.next ?? 1;
+      this.demoRemoved = stored.demoRemoved ?? false;
+      let sales = (stored.sales ?? []).map(s => this.revive(s));
+
+      // Cambió la versión de los datos de ejemplo: se renuevan (las ventas reales no se tocan)
+      if (stored.version !== SEED_VERSION) {
+        sales = sales.filter(s => !s.demo);
+        if (SEED_DEMO && !this.demoRemoved) sales = [...sales, ...this.seed()];
+      }
+      return sales;
     }
-    return [];
+
+    return SEED_DEMO ? this.seed() : [];
   }
 
   private round2(n: number): number {
@@ -129,14 +173,15 @@ export class SalesHistoryService {
     const rnd = () => (seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296;
     const now = new Date();
 
-    const drafts = Array.from({ length: 36 }, () => {
+    const dates = Array.from({ length: 60 }, () => {
       const date = new Date(now);
-      date.setDate(date.getDate() - (1 + Math.floor(rnd() * 75)));
+      date.setDate(date.getDate() - Math.floor(rnd() * 75));      // 0 = hoy
       date.setHours(8 + Math.floor(rnd() * 12), Math.floor(rnd() * 60), Math.floor(rnd() * 60), 0);
+      if (date.getTime() > now.getTime()) date.setTime(now.getTime() - 60_000 * (1 + Math.floor(rnd() * 90)));
       return date;
     }).sort((a, b) => a.getTime() - b.getTime());
 
-    return drafts.map((date, i) => {
+    return dates.map((date, i) => {
       const pool = [...catalog];
       const count = 1 + Math.floor(rnd() * 4);
       const items: SaleItem[] = [];
@@ -153,9 +198,10 @@ export class SalesHistoryService {
       const method: PaymentMethod = rnd() < 0.55 ? 'card' : 'cash';
       const cashReceived = method === 'cash' ? Math.ceil(total / 5) * 5 : null;
       const number = i + 1;
+      const refunded = i % 9 === 4;   // algunas ventas de ejemplo ya reembolsadas
 
       return {
-        id: `TRX-${String(number).padStart(5, '0')}`,
+        id: `DEMO-${String(number).padStart(5, '0')}`,
         number,
         date,
         items,
@@ -167,8 +213,10 @@ export class SalesHistoryService {
         method,
         cashReceived,
         change: cashReceived !== null ? this.round2(cashReceived - total) : 0,
+        status: refunded ? 'refunded' : 'completed',
+        refundedAt: refunded ? new Date(Math.min(date.getTime() + 2 * 3_600_000, now.getTime())) : undefined,
         demo: true,
-      };
+      } as Sale;
     });
   }
 }

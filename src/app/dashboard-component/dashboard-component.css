@@ -1,12 +1,6 @@
-/* ═══════════════════════════════════════════
-   DASHBOARD COMPONENT
-   La paleta (--s-*) y el modo oscuro se definen en app.css
-   ═══════════════════════════════════════════ */
-
-   [hidden]{
+[hidden]{
     display: none !important;
 }
-
 .dashboard_container{
     width: calc(100% - 250px);
     height: 100%;
@@ -200,6 +194,8 @@
 .dash_hint--block{
     padding-top: 8px;
     border-top: 1px dashed var(--s-border);
+    height: 16px;
+    padding-top: 4px;
 }
 
 /* ───────── Rejilla principal ───────── */
@@ -275,7 +271,7 @@
     flex-direction: column;
     gap: 2px;
     min-width: 0;
-    margin: 7px;
+    margin: 9px;
 }
 .dash_stats dt{
     font-size: 11px;
@@ -456,9 +452,9 @@
     background: var(--s-ok-bg);
     color: var(--s-ok-fg);
 }
-.dash_tx_icon.is-void{
-    background: var(--s-danger-soft);
-    color: var(--s-danger);
+.dash_tx_icon.is-refund{
+    background: var(--s-warn-bg);
+    color: var(--s-warn-fg);
 }
 .dash_tx_icon .material-symbols-outlined{
     font-size: 22px;
@@ -482,7 +478,7 @@
     font-weight: 800;
     font-variant-numeric: tabular-nums;
 }
-.dash_tx_money.is-void{
+.dash_tx_money.is-refund{
     color: var(--s-muted);
     text-decoration: line-through;
 }
@@ -495,9 +491,18 @@
     font-weight: 700;
     letter-spacing: .04em;
 }
-.dash_badge--void{
-    background: var(--s-danger-soft);
-    color: var(--s-danger);
+.dash_badge--refund{
+    background: var(--s-warn-bg);
+    color: var(--s-warn-fg);
+}
+
+/* Estados vacíos */
+.dash_empty{
+    padding: 28px 12px;
+    list-style: none;
+    text-align: center;
+    font-size: 14px;
+    color: var(--s-muted);
 }
 
 /* ───────── Toast ───────── */

@@ -14,7 +14,7 @@
 
     <!-- ═════════ Métricas ═════════ -->
     <section class="dash_metrics" aria-label="Key metrics">
-        @for (m of metrics; track m.label) {
+        @for (m of metrics(); track m.label) {
             <article class="dash_metric">
                 <div class="dash_metric_top">
                     <p>{{ m.label }}</p>
@@ -28,9 +28,11 @@
                             {{ pct(m.delta) }}
                         </span>
                         <span class="dash_hint">{{ m.deltaLabel }}</span>
+                    } @else {
+                        <span class="dash_hint">No data yesterday to compare</span>
                     }
                 </div>
-                <p class="dash_hint dash_hint--block">{{ m.hint }}</p>
+                <div class="dash_hint dash_hint--block">{{ m.hint }}</div>
             </article>
         }
     </section>
@@ -45,7 +47,7 @@
                 <div class="dash_card_header">
                     <div>
                         <h3>Sales Trend (Weekly)</h3>
-                        <p class="dash_sub">Daily revenue compared with the previous week</p>
+                        <p class="dash_sub">Daily revenue, Monday to Sunday, compared with the previous week</p>
                     </div>
                     <div class="dash_menu_wrap">
                         <button type="button" class="dash_icon_btn" aria-label="Chart options"
@@ -74,26 +76,30 @@
 
                 <dl class="dash_stats">
                     <div>
-                        <dt>Week total</dt>
-                        <dd>{{ money(weekSummary.total) }}</dd>
-                        <small class="dash_delta_text" [class.is-up]="weekSummary.change >= 0" [class.is-down]="weekSummary.change < 0">
-                            {{ pct(weekSummary.change) }} vs last week
-                        </small>
+                        <dt>Week to date</dt>
+                        <dd>{{ money(weekSummary().total) }}</dd>
+                        @if (weekSummary().change !== null) {
+                            <small class="dash_delta_text" [class.is-up]="weekSummary().change! >= 0" [class.is-down]="weekSummary().change! < 0">
+                                {{ pct(weekSummary().change) }} vs same days last week
+                            </small>
+                        } @else {
+                            <small class="dash_hint">No sales on those days last week</small>
+                        }
                     </div>
                     <div>
                         <dt>Daily average</dt>
-                        <dd>{{ money(weekSummary.average) }}</dd>
-                        <small class="dash_hint">Across 7 days</small>
+                        <dd>{{ money(weekSummary().average) }}</dd>
+                        <small class="dash_hint">Across {{ weekSummary().daysElapsed }} {{ weekSummary().daysElapsed === 1 ? 'day' : 'days' }}</small>
                     </div>
                     <div>
                         <dt>Best day</dt>
-                        <dd>{{ weekSummary.bestDay }}</dd>
-                        <small class="dash_hint">{{ money(weekSummary.bestValue) }}</small>
+                        <dd>{{ weekSummary().bestDay }}</dd>
+                        <small class="dash_hint">{{ money(weekSummary().bestValue) }}</small>
                     </div>
                     <div>
                         <dt>Last week</dt>
-                        <dd>{{ money(weekSummary.lastTotal) }}</dd>
-                        <small class="dash_hint">Previous total</small>
+                        <dd>{{ money(weekSummary().lastTotal) }}</dd>
+                        <small class="dash_hint">Full-week total</small>
                     </div>
                 </dl>
 
@@ -114,13 +120,15 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @for (r of weekSummary.rows; track r.day) {
+                            @for (r of weekSummary().rows; track r.day) {
                                 <tr>
                                     <th scope="row">{{ r.day }}</th>
-                                    <td class="is-right">{{ money(r.current) }}</td>
+                                    <td class="is-right">{{ r.current === null ? '—' : money(r.current) }}</td>
                                     <td class="is-right dash_muted">{{ money(r.previous) }}</td>
                                     <td class="is-right">
-                                        <span class="dash_delta_text" [class.is-up]="r.change >= 0" [class.is-down]="r.change < 0">{{ pct(r.change) }}</span>
+                                        <span class="dash_delta_text"
+                                              [class.is-up]="r.change !== null && r.change >= 0"
+                                              [class.is-down]="r.change !== null && r.change < 0">{{ pct(r.change) }}</span>
                                     </td>
                                 </tr>
                             }
@@ -128,10 +136,12 @@
                         <tfoot>
                             <tr>
                                 <th scope="row">Total</th>
-                                <td class="is-right">{{ money(weekSummary.total) }}</td>
-                                <td class="is-right dash_muted">{{ money(weekSummary.lastTotal) }}</td>
+                                <td class="is-right">{{ money(weekSummary().total) }}</td>
+                                <td class="is-right dash_muted">{{ money(weekSummary().lastTotal) }}</td>
                                 <td class="is-right">
-                                    <span class="dash_delta_text" [class.is-up]="weekSummary.change >= 0" [class.is-down]="weekSummary.change < 0">{{ pct(weekSummary.change) }}</span>
+                                    <span class="dash_delta_text"
+                                          [class.is-up]="weekSummary().change !== null && weekSummary().change! >= 0"
+                                          [class.is-down]="weekSummary().change !== null && weekSummary().change! < 0">{{ pct(weekSummary().change) }}</span>
                                 </td>
                             </tr>
                         </tfoot>
@@ -144,7 +154,7 @@
                 <div class="dash_card_header">
                     <div>
                         <h3>Top Selling Products</h3>
-                        <p class="dash_sub">Top 5, ranked by {{ topMode() === 'volume' ? 'units sold' : 'revenue' }}</p>
+                        <p class="dash_sub">Last 30 days, ranked by {{ topMode() === 'volume' ? 'units sold' : 'revenue' }}</p>
                     </div>
                     <div class="dash_segment" role="radiogroup" aria-label="Rank products by">
                         <button type="button" role="radio" [attr.aria-checked]="topMode() === 'volume'"
@@ -154,14 +164,19 @@
                     </div>
                 </div>
 
-                <div class="dash_chart dash_chart--bars">
+                <div class="dash_chart dash_chart--bars" [hidden]="topSorted().length === 0">
                     <canvas #miGraficaBarras role="img"
-                            aria-label="Horizontal bar chart of the five best selling products"></canvas>
+                            aria-label="Horizontal bar chart of the best selling products"></canvas>
                 </div>
 
-                <p class="dash_footnote">
-                    Top 5 total: <strong>{{ topTotals().units }} units</strong> · <strong>{{ money(topTotals().revenue) }}</strong>
-                </p>
+                @if (topSorted().length === 0) {
+                    <p class="dash_empty">No sales in the last 30 days yet.</p>
+                } @else {
+                    <p class="dash_footnote">
+                        Top {{ topSorted().length }} total: <strong>{{ topTotals().units }} units</strong> · <strong>{{ money(topTotals().revenue) }}</strong>
+                        · revenue = price × quantity, before discounts and tax
+                    </p>
+                }
             </section>
         </div>
 
@@ -170,26 +185,28 @@
             <div class="dash_card_header">
                 <div>
                     <h3>Recent Activity</h3>
-                    <p class="dash_sub">{{ recentSummary }}</p>
+                    <p class="dash_sub">{{ recentSummary() }}</p>
                 </div>
                 <a class="dash_link" routerLink="/history">View All</a>
             </div>
 
             <ul class="dash_tx_list">
-                @for (t of recent; track t.id) {
+                @for (t of recent(); track t.id) {
                     <li class="dash_tx">
-                        <div class="dash_tx_icon" [class.is-void]="t.status === 'void'">
-                            <span class="material-symbols-outlined" aria-hidden="true">{{ t.status === 'paid' ? 'check_circle' : 'cancel' }}</span>
+                        <div class="dash_tx_icon" [class.is-refund]="t.status === 'refunded'">
+                            <span class="material-symbols-outlined" aria-hidden="true">{{ t.status === 'completed' ? 'check_circle' : 'undo' }}</span>
                         </div>
                         <div class="dash_tx_info">
-                            <p class="dash_tx_id">{{ t.id }}</p>
-                            <p class="dash_tx_meta">{{ t.time }} · {{ t.method }} · {{ t.items }} {{ t.items === 1 ? 'item' : 'items' }}</p>
+                            <p class="dash_tx_id">#{{ t.id }}</p>
+                            <p class="dash_tx_meta">{{ t.when }} · {{ t.method }} · {{ t.items }} {{ t.items === 1 ? 'item' : 'items' }}</p>
                         </div>
                         <div class="dash_tx_amount">
-                            <p class="dash_tx_money" [class.is-void]="t.status === 'void'">{{ money(t.amount) }}</p>
-                            <span class="dash_badge" [class.dash_badge--void]="t.status === 'void'">{{ t.status === 'paid' ? 'PAID' : 'VOID' }}</span>
+                            <p class="dash_tx_money" [class.is-refund]="t.status === 'refunded'">{{ money(t.amount) }}</p>
+                            <span class="dash_badge" [class.dash_badge--refund]="t.status === 'refunded'">{{ t.status === 'completed' ? 'PAID' : 'REFUNDED' }}</span>
                         </div>
                     </li>
+                } @empty {
+                    <li class="dash_empty">No sales yet. Completed sales will show up here.</li>
                 }
             </ul>
         </section>

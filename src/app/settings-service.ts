@@ -27,6 +27,7 @@ export class SettingsService {
   private readonly systemDark = signal<boolean>(this.media?.matches ?? false);
 
   readonly settings = signal<AppSettings>(this.load());
+  readonly TaxNumber = signal<number>(DEFAULT_SETTINGS.taxRate);
 
   /** Tema real que se está mostrando (resuelve "system"). */
   readonly resolvedTheme = computed<'light' | 'dark'>(() => {
@@ -55,6 +56,7 @@ export class SettingsService {
       const value = JSON.stringify(this.settings());
       try {
         localStorage.setItem(STORAGE_KEY, value);
+        this.TaxNumber.set(this.settings().taxRate);
       } catch { /* almacenamiento no disponible */ }
     });
   }
@@ -67,7 +69,7 @@ export class SettingsService {
     this.settings.set({ ...DEFAULT_SETTINGS });
   }
 
-  private load(): AppSettings {
+  load(): AppSettings {
     try {
       const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null');
       if (!raw) return { ...DEFAULT_SETTINGS };

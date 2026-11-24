@@ -1,8 +1,13 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { Component, ElementRef, HostListener, ViewChild } from '@angular/core';
+import { Component, computed, ElementRef, HostListener, inject, signal, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { GetProductService } from '../get-product-service';
 import { Product } from '../interfaces/product.interface';
+import { SettingsService } from '../settings-service';
+import { SalesHistoryService } from '../sales-history-service';
+
+
+  
 
 type ModalType = 'info' | 'confirmVoid' | 'discount' | 'pay' | 'success';
 type ModalTone = 'error' | 'warning';
@@ -37,7 +42,8 @@ export class SalesComponent {
     }
   }
 
-  protected readonly TAX_RATE = 0.0825;
+  private history = inject(SalesHistoryService);
+ 
   protected readonly quickCash = [20, 50, 100];
 
   protected fechaActual: Date = new Date();
@@ -61,9 +67,15 @@ export class SalesComponent {
   protected cashReceived: number | null = null;
   protected receipt?: SaleReceipt;
   private saleCounter = 1;
+  readonly TaxNumb = signal<Number>(0);
 
-  constructor(private productService: GetProductService) {}
+  constructor(private productService: GetProductService, private settingsServ: SettingsService) {   
+    this.TaxNumb = settingsServ.TaxNumber;
+  }
 
+  protected readonly TAX_RATE = computed(() => {
+    return Number(this.TaxNumb()) / 100;
+  });
   // ───────── Computed totals (single source of truth) ─────────
   private round2(n: number): number {
     return Math.round((n + Number.EPSILON) * 100) / 100;
@@ -81,7 +93,7 @@ export class SalesComponent {
   }
 
   get tax(): number {
-    return this.round2((this.subtotal - this.discount) * this.TAX_RATE);
+    return this.round2((this.subtotal - this.discount) * this.TAX_RATE());
   }
 
   get totalp(): number {
@@ -272,18 +284,30 @@ export class SalesComponent {
 
   confirmPay(): void {
     if (!this.canConfirmPay) return;
-
+  
     const items = this.getCarry().reduce((s, p) => s + p.inCarry, 0);
+  
+    // Se registra antes de vaciar el carrito
+    const sale = this.history.record({
+      items: this.getCarry().map(p => ({ id: p.id, name: p.name, price: p.price, qty: p.inCarry })),
+      subtotal: this.subtotal,
+      discount: this.discount,
+      taxRate: this.TAX_RATE(),
+      tax: this.tax,
+      total: this.totalp,
+      method: this.payMethod,
+      cashReceived: this.payMethod === 'cash' ? this.cashReceived : null,
+    });
+  
     this.receipt = {
-      number: String(this.saleCounter++).padStart(5, '0'),
+      number: String(sale.number).padStart(5, '0'),
       method: this.payMethod,
       total: this.totalp,
       change: this.payMethod === 'cash' ? Math.max(this.change, 0) : 0,
       items,
-      date: new Date(),
+      date: sale.date,
     };
-
-    // Descuenta stock y vacía el carrito
+  
     this.getCarry().forEach(p => (p.total -= p.inCarry));
     this.carryEmpty();
     this.productSelected = undefined;

@@ -8,7 +8,7 @@ import { PaymentMethod, Sale, SalesHistoryService } from '../sales-history-servi
 
 type MethodFilter = 'all' | PaymentMethod;
 type PresetId = 'today' | '7d' | '30d' | 'month' | 'all';
-type ModalType = 'export' | 'delete';
+type ModalType = 'export' | 'delete' | 'refund';
 type ExportFormat = 'txt' | 'csv' | 'xlsx' | 'pdf';
 
 @Component({
@@ -46,6 +46,7 @@ export class HistoryComponent {
   ];
 
   // ═════════ Estado ═════════
+  protected readonly query = signal('');
   protected readonly dateFrom = signal('');          // 'yyyy-mm-dd' o ''
   protected readonly dateTo = signal('');
   protected readonly methodFilter = signal<MethodFilter>('all');
@@ -56,7 +57,7 @@ export class HistoryComponent {
   private readonly selectedId = signal<string | null>(null);
 
   protected readonly modalType = signal<ModalType | null>(null);
-  protected readonly target = signal<Sale | null>(null);        // venta a eliminar
+  protected readonly target = signal<Sale | null>(null);        // venta a eliminar o reembolsar
   protected readonly exportFormat = signal<ExportFormat>('txt');
   protected readonly includeItems = signal(true);
   protected readonly restoreStock = signal(true);
@@ -65,15 +66,19 @@ export class HistoryComponent {
   private toastTimer?: ReturnType<typeof setTimeout>;
 
   // ═════════ Derivados ═════════
-  /** Resultado de aplicar rango de fechas + método de pago, de la más reciente a la más antigua. */
+  /** Búsqueda + rango de fechas + método de pago, de la más reciente a la más antigua. */
   protected readonly filtered = computed<Sale[]>(() => {
+    const q = this.query().trim().toLowerCase().replace(/^#/, '');
     const from = this.dateFrom();
     const to = this.dateTo();
     const method = this.methodFilter();
     return this.history.sales()
       .filter(s => {
         const day = this.dayKey(s.date);
-        return (!from || day >= from) && (!to || day <= to) && (method === 'all' || s.method === method);
+        return (!from || day >= from)
+          && (!to || day <= to)
+          && (method === 'all' || s.method === method)
+          && (!q || this.matches(s, q));
       })
       .sort((a, b) => b.date.getTime() - a.date.getTime());
   });
@@ -82,7 +87,7 @@ export class HistoryComponent {
   protected readonly totalCount = computed(() => this.history.sales().length);
 
   protected readonly hasFilters = computed(() =>
-    !!this.dateFrom() || !!this.dateTo() || this.methodFilter() !== 'all');
+    !!this.query().trim() || !!this.dateFrom() || !!this.dateTo() || this.methodFilter() !== 'all');
 
   protected readonly methodLabel = computed(() =>
     this.methodOptions.find(o => o.value === this.methodFilter())?.label ?? '');
@@ -97,16 +102,20 @@ export class HistoryComponent {
     return null;
   });
 
+  /** Los ingresos solo cuentan las ventas completadas; las reembolsadas se muestran aparte. */
   protected readonly summary = computed(() => {
     const list = this.filtered();
-    const revenue = list.reduce((s, x) => s + x.total, 0);
+    const done = list.filter(s => s.status === 'completed');
+    const refunded = list.filter(s => s.status === 'refunded');
+    const revenue = done.reduce((s, x) => s + x.total, 0);
     return {
-      count: list.length,
+      count: done.length,
       revenue,
-      average: list.length ? revenue / list.length : 0,
-      units: list.reduce((s, x) => s + this.itemCount(x), 0),
-      cash: list.filter(x => x.method === 'cash').length,
-      card: list.filter(x => x.method === 'card').length,
+      average: done.length ? revenue / done.length : 0,
+      cash: done.filter(x => x.method === 'cash').length,
+      card: done.filter(x => x.method === 'card').length,
+      refundedCount: refunded.length,
+      refundedAmount: refunded.reduce((s, x) => s + x.total, 0),
     };
   });
 
@@ -143,7 +152,7 @@ export class HistoryComponent {
     return list.find(s => s.id === this.selectedId()) ?? list[0] ?? null;
   });
 
-  // ═════════ Utilidades de formato ═════════
+  // ═════════ Formato y utilidades ═════════
   protected money(n: number): string {
     return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
@@ -158,6 +167,10 @@ export class HistoryComponent {
 
   protected methodName(m: PaymentMethod): string {
     return m === 'cash' ? 'Cash' : 'Card';
+  }
+
+  protected statusName(s: Sale): string {
+    return s.status === 'completed' ? 'COMPLETED' : 'REFUNDED';
   }
 
   private dayKey(d: Date): string {
@@ -180,7 +193,23 @@ export class HistoryComponent {
     return d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
   }
 
-  // ═════════ Filtros ═════════
+  /** Busca por ID de transacción (con o sin '#'), nombre de producto o ID de producto. */
+  private matches(s: Sale, q: string): boolean {
+    return s.id.toLowerCase().includes(q)
+      || s.items.some(it => it.name.toLowerCase().includes(q) || String(it.id) === q);
+  }
+
+  // ═════════ Búsqueda y filtros ═════════
+  protected onSearch(value: string): void {
+    this.query.set(value);
+    this.currentPage.set(1);
+  }
+
+  protected clearSearch(): void {
+    this.query.set('');
+    this.currentPage.set(1);
+  }
+
   private presetRange(id: PresetId): [string, string] {
     const now = new Date();
     const today = this.dayKey(now);
@@ -230,6 +259,7 @@ export class HistoryComponent {
   }
 
   protected clearFilters(): void {
+    this.query.set('');
     this.dateFrom.set('');
     this.dateTo.set('');
     this.methodFilter.set('all');
@@ -278,7 +308,27 @@ export class HistoryComponent {
     if (e.target === this.modalRef.nativeElement) this.closeModal();
   }
 
-  // ═════════ Eliminar venta ═════════
+  // ═════════ Reembolsar ═════════
+  protected openRefund(sale: Sale): void {
+    if (sale.status !== 'completed') return;
+    this.target.set(sale);
+    this.restoreStock.set(true);
+    this.open('refund');
+  }
+
+  protected confirmRefund(): void {
+    const sale = this.target();
+    if (!sale || sale.status !== 'completed') return;
+
+    const restored = this.restoreStock() ? this.returnToStock(sale) : null;
+    this.history.refund(sale.id);
+    this.closeModal();
+
+    const note = restored ? ` Stock restored for ${restored.done} of ${sale.items.length} product(s).` : '';
+    this.showToast(`Sale #${sale.id} refunded.${note}`);
+  }
+
+  // ═════════ Eliminar ═════════
   protected openDelete(sale: Sale): void {
     this.target.set(sale);
     this.restoreStock.set(true);
@@ -289,24 +339,119 @@ export class HistoryComponent {
     const sale = this.target();
     if (!sale) return;
 
-    let restored = 0;
-    if (this.restoreStock()) {
-      for (const item of sale.items) {
-        const product = this.products.getProductById(item.id);
-        if (product) {
-          product.total += item.qty;   // devuelve las unidades al inventario
-          restored++;
-        }
-      }
-    }
-
+    // Una venta ya reembolsada no vuelve a tocar el stock (ya se gestionó al reembolsar)
+    const restored = sale.status === 'completed' && this.restoreStock() ? this.returnToStock(sale) : null;
     this.history.remove(sale.id);
     this.closeModal();
 
-    const stockNote = this.restoreStock()
-      ? ` Stock restored for ${restored} of ${sale.items.length} product(s).`
+    const note = restored ? ` Stock restored for ${restored.done} of ${sale.items.length} product(s).` : '';
+    this.showToast(`Sale #${sale.id} deleted.${note}`);
+  }
+
+  /** Devuelve las unidades de la venta al inventario (por ID de producto). */
+  private returnToStock(sale: Sale): { done: number } {
+    let done = 0;
+    for (const item of sale.items) {
+      const product = this.products.getProductById(item.id);
+      if (product) {
+        product.total += item.qty;
+        done++;
+      }
+    }
+    return { done };
+  }
+
+  // ═════════ Imprimir recibo ═════════
+  protected printReceipt(sale: Sale): void {
+    this.printHtml(this.buildReceiptHtml(sale));
+  }
+
+  private esc(text: string): string {
+    return text
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  private buildReceiptHtml(s: Sale): string {
+    const rows = s.items.map(it => `
+        <tr>
+          <td>${this.esc(it.name)}<small>${it.qty} x ${this.money(it.price)}</small></td>
+          <td class="r">${this.money(it.qty * it.price)}</td>
+        </tr>`).join('');
+
+    const extra = s.method === 'cash' && s.cashReceived !== null
+      ? `<tr><td>Cash received</td><td class="r">${this.money(s.cashReceived)}</td></tr>
+         <tr><td>Change</td><td class="r">${this.money(s.change)}</td></tr>`
       : '';
-    this.showToast(`Sale #${sale.id} deleted.${stockNote}`);
+
+    const stamp = s.status === 'refunded'
+      ? `<div class="stamp">REFUNDED${s.refundedAt ? `<small>${this.esc(this.formatStamp(s.refundedAt))}</small>` : ''}</div>`
+      : '';
+
+    return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Receipt ${this.esc(s.id)}</title>
+<style>
+  @page { margin: 4mm; }
+  * { box-sizing: border-box; }
+  body { margin: 0 auto; width: 72mm; font: 12px/1.45 'Courier New', monospace; color: #000; background: #fff; }
+  h1 { margin: 0 0 2px; font-size: 18px; letter-spacing: 2px; text-align: center; }
+  .c { text-align: center; }
+  .r { text-align: right; white-space: nowrap; padding-left: 8px; }
+  hr { border: 0; border-top: 1px dashed #000; margin: 8px 0; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 2px 0; vertical-align: top; }
+  small { display: block; font-size: 11px; }
+  .total td { padding-top: 4px; font-size: 15px; font-weight: 700; }
+  .stamp { margin: 10px 0; padding: 4px; border: 2px solid #000; text-align: center; font-weight: 700; letter-spacing: 3px; }
+</style></head>
+<body>
+  <h1>MARKETPLUS</h1>
+  <p class="c">Sales receipt</p>
+  <hr>
+  <table>
+    <tr><td>Receipt</td><td class="r">#${this.esc(s.id)}</td></tr>
+    <tr><td>Date</td><td class="r">${this.esc(this.formatStamp(s.date))}</td></tr>
+    <tr><td>Payment</td><td class="r">${this.methodName(s.method)}</td></tr>
+  </table>
+  <hr>
+  <table>${rows}</table>
+  <hr>
+  <table>
+    <tr><td>Subtotal</td><td class="r">${this.money(s.subtotal)}</td></tr>
+    ${s.discount > 0 ? `<tr><td>Discount</td><td class="r">-${this.money(s.discount)}</td></tr>` : ''}
+    <tr><td>Tax (${this.taxPct(s)}%)</td><td class="r">${this.money(s.tax)}</td></tr>
+    <tr class="total"><td>TOTAL</td><td class="r">${this.money(s.total)}</td></tr>
+    ${extra}
+  </table>
+  ${stamp}
+  <hr>
+  <p class="c">Thank you for your purchase!</p>
+</body></html>`;
+  }
+
+  /** Imprime HTML en un iframe oculto: no abre pestañas nuevas ni choca con bloqueadores de ventanas. */
+  private printHtml(html: string): void {
+    const frame = document.createElement('iframe');
+    frame.setAttribute('aria-hidden', 'true');
+    frame.setAttribute('title', 'Receipt');
+    frame.style.cssText = 'position:fixed;left:-10000px;top:0;width:320px;height:640px;border:0;';
+    document.body.appendChild(frame);
+
+    const doc = frame.contentDocument;
+    const win = frame.contentWindow;
+    if (!doc || !win) { frame.remove(); return; }
+
+    doc.open();
+    doc.write(html);
+    doc.close();
+
+    const cleanup = () => setTimeout(() => frame.remove(), 500);
+    win.onafterprint = cleanup;
+    setTimeout(() => {              // deja que el iframe termine de maquetar antes de imprimir
+      win.focus();
+      win.print();
+      setTimeout(() => frame.remove(), 60_000);   // red de seguridad si el navegador no avisa del fin de impresión
+    }, 250);
   }
 
   // ═════════ Exportar ═════════
@@ -330,94 +475,69 @@ export class HistoryComponent {
     this.showToast(`History exported: ${name}`);
   }
 
-  protected downloadReceipt(sale: Sale): void {
-    const name = `receipt-${sale.id}.txt`;
-    this.downloadBlob(this.buildReceiptTxt(sale), name);
-    this.showToast(`Receipt downloaded: ${name}`);
-  }
-
   private buildHistoryTxt(list: Sale[]): string {
-    const hr = '='.repeat(72);
-    const sub = '-'.repeat(72);
+    const hr = '='.repeat(78);
+    const sub = '-'.repeat(78);
     const L = (s: string, n: number) => s.padEnd(n);
     const R = (s: string, n: number) => s.padStart(n);
-    const sum = (f: (s: Sale) => number) => list.reduce((t, s) => t + f(s), 0);
+
+    const done = list.filter(s => s.status === 'completed');
+    const refunded = list.filter(s => s.status === 'refunded');
+    const sum = (a: Sale[], f: (s: Sale) => number) => a.reduce((t, s) => t + f(s), 0);
+    const cash = done.filter(s => s.method === 'cash');
+    const card = done.filter(s => s.method === 'card');
+    const revenue = sum(done, s => s.total);
 
     const from = this.dateFrom();
     const to = this.dateTo();
     const period = !from && !to ? 'All dates'
       : `${from ? this.formatDay(from) : 'Beginning'} to ${to ? this.formatDay(to) : 'today'}`;
-    const cash = list.filter(s => s.method === 'cash');
-    const card = list.filter(s => s.method === 'card');
-    const total = (a: Sale[]) => a.reduce((t, s) => t + s.total, 0);
+    const q = this.query().trim();
 
     const out: string[] = [];
     out.push(hr, ' MARKETPLUS - SALES HISTORY', hr);
     out.push(`Generated : ${this.formatStamp(new Date())}`);
     out.push(`Period    : ${period}`);
-    out.push(`Payment   : ${this.methodLabel()}`);
-    out.push(`Sales     : ${list.length}`, '');
+    out.push(`Payment   : ${this.methodOptions.find(o => o.value === this.methodFilter())?.label}`);
+    if (q) out.push(`Search    : "${q}"`);
+    out.push(`Records   : ${list.length} (${done.length} completed, ${refunded.length} refunded)`, '');
 
-    out.push('SUMMARY', sub);
-    out.push(`${L('Revenue', 22)}${R(this.money(total(list)), 14)}`);
-    out.push(`${L('Average ticket', 22)}${R(this.money(total(list) / list.length), 14)}`);
-    out.push(`${L('Discounts given', 22)}${R(this.money(sum(s => s.discount)), 14)}`);
-    out.push(`${L('Tax collected', 22)}${R(this.money(sum(s => s.tax)), 14)}`);
-    out.push(`${L('Units sold', 22)}${R(String(sum(s => this.itemCount(s))), 14)}`);
-    out.push(`${L('Cash sales', 22)}${R(`${cash.length} (${this.money(total(cash))})`, 24)}`);
-    out.push(`${L('Card sales', 22)}${R(`${card.length} (${this.money(total(card))})`, 24)}`, '');
+    out.push('SUMMARY (completed sales only)', sub);
+    out.push(`${L('Net revenue', 24)}${R(this.money(revenue), 14)}`);
+    out.push(`${L('Average ticket', 24)}${R(this.money(done.length ? revenue / done.length : 0), 14)}`);
+    out.push(`${L('Discounts given', 24)}${R(this.money(sum(done, s => s.discount)), 14)}`);
+    out.push(`${L('Tax collected', 24)}${R(this.money(sum(done, s => s.tax)), 14)}`);
+    out.push(`${L('Units sold', 24)}${R(String(sum(done, s => this.itemCount(s))), 14)}`);
+    out.push(`${L('Cash sales', 24)}${R(`${cash.length} (${this.money(sum(cash, s => s.total))})`, 26)}`);
+    out.push(`${L('Card sales', 24)}${R(`${card.length} (${this.money(sum(card, s => s.total))})`, 26)}`);
+    out.push(`${L('Refunded (excluded)', 24)}${R(`${refunded.length} (${this.money(sum(refunded, s => s.total))})`, 26)}`, '');
 
     out.push('SALES', sub);
-    out.push(`${L('ID', 11)}${L('Date / Time', 22)}${R('Items', 6)}  ${L('Payment', 9)}${R('Discount', 10)}${R('Total', 12)}`);
+    out.push(`${L('ID', 12)}${L('Date / Time', 22)}${R('Items', 6)}  ${L('Payment', 9)}${L('Status', 10)}${R('Total', 12)}`);
     for (const s of list) {
       out.push(
-        `${L(s.id, 11)}${L(this.formatStamp(s.date), 22)}${R(String(this.itemCount(s)), 6)}  ` +
-        `${L(this.methodName(s.method), 9)}${R(this.money(s.discount), 10)}${R(this.money(s.total), 12)}`,
+        `${L(s.id, 12)}${L(this.formatStamp(s.date), 22)}${R(String(this.itemCount(s)), 6)}  ` +
+        `${L(this.methodName(s.method), 9)}${L(s.status.toUpperCase(), 10)}${R(this.money(s.total), 12)}`,
       );
     }
-    out.push(sub, `${L('TOTAL', 49)}${R(this.money(sum(s => s.discount)), 10)}${R(this.money(total(list)), 12)}`, '');
+    out.push(sub, `${L('NET REVENUE (completed only)', 66)}${R(this.money(revenue), 12)}`, '');
 
     if (this.includeItems()) {
       out.push('SALE DETAILS', sub);
       for (const s of list) {
-        out.push(`#${s.id}  |  ${this.formatStamp(s.date)}  |  ${this.methodName(s.method)}`);
+        const refundNote = s.status === 'refunded' && s.refundedAt ? `  |  REFUNDED ${this.formatStamp(s.refundedAt)}` : '';
+        out.push(`#${s.id}  |  ${this.formatStamp(s.date)}  |  ${this.methodName(s.method)}${refundNote}`);
         for (const it of s.items) {
-          out.push(`   ${L(it.name, 22)}${R(`${it.qty} x ${this.money(it.price)}`, 18)}${R(this.money(it.qty * it.price), 12)}`);
+          out.push(`   ${L(it.name, 24)}${R(`${it.qty} x ${this.money(it.price)}`, 18)}${R(this.money(it.qty * it.price), 12)}`);
         }
-        out.push(`   ${L('Subtotal', 22)}${R(this.money(s.subtotal), 30)}`);
-        if (s.discount > 0) out.push(`   ${L('Discount', 22)}${R('-' + this.money(s.discount), 30)}`);
-        out.push(`   ${L(`Tax (${this.taxPct(s)}%)`, 22)}${R(this.money(s.tax), 30)}`);
-        out.push(`   ${L('TOTAL', 22)}${R(this.money(s.total), 30)}`, '');
+        out.push(`   ${L('Subtotal', 24)}${R(this.money(s.subtotal), 30)}`);
+        if (s.discount > 0) out.push(`   ${L('Discount', 24)}${R('-' + this.money(s.discount), 30)}`);
+        out.push(`   ${L(`Tax (${this.taxPct(s)}%)`, 24)}${R(this.money(s.tax), 30)}`);
+        out.push(`   ${L('TOTAL', 24)}${R(this.money(s.total), 30)}`, '');
       }
     }
 
     out.push(hr, ' End of report', hr, '');
-    return out.join('\r\n');
-  }
-
-  private buildReceiptTxt(s: Sale): string {
-    const hr = '='.repeat(44);
-    const L = (t: string, n: number) => t.padEnd(n);
-    const R = (t: string, n: number) => t.padStart(n);
-    const out: string[] = [];
-
-    out.push(hr, '               MARKETPLUS', hr);
-    out.push(`Receipt  : #${s.id}`);
-    out.push(`Date     : ${this.formatStamp(s.date)}`);
-    out.push(`Payment  : ${this.methodName(s.method)}`, '-'.repeat(44));
-    for (const it of s.items) {
-      out.push(`${L(it.name, 24)}${R(`${it.qty} x ${this.money(it.price)}`, 12)}${R(this.money(it.qty * it.price), 8)}`.slice(0, 60));
-    }
-    out.push('-'.repeat(44));
-    out.push(`${L('Subtotal', 24)}${R(this.money(s.subtotal), 20)}`);
-    if (s.discount > 0) out.push(`${L('Discount', 24)}${R('-' + this.money(s.discount), 20)}`);
-    out.push(`${L(`Tax (${this.taxPct(s)}%)`, 24)}${R(this.money(s.tax), 20)}`);
-    out.push(`${L('TOTAL', 24)}${R(this.money(s.total), 20)}`);
-    if (s.method === 'cash' && s.cashReceived !== null) {
-      out.push(`${L('Cash received', 24)}${R(this.money(s.cashReceived), 20)}`);
-      out.push(`${L('Change', 24)}${R(this.money(s.change), 20)}`);
-    }
-    out.push(hr, '           Thank you for your purchase!', hr, '');
     return out.join('\r\n');
   }
 
@@ -436,6 +556,7 @@ export class HistoryComponent {
   private showToast(text: string): void {
     clearTimeout(this.toastTimer);
     this.toast.set(text);
-    this.toastTimer = setTimeout(() => this.toast.set(null), 4000);
+    this.toastTimer = setTimeout(() => this.toast.set(null), 4500);
   }
 }
+

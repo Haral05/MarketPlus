@@ -3,7 +3,7 @@
     @if (hasDemo()) {
         <div class="hist_banner" role="note">
             <span class="material-symbols-outlined" aria-hidden="true">info</span>
-            <p>Sample sales are loaded so you can try the filters. Real sales from the Sales screen appear here too.</p>
+            <p>Sample sales (IDs starting with DEMO) are loaded so you can try the app. Real sales from the Sales screen appear here too.</p>
             <button type="button" class="hist_link_btn" (click)="removeDemo()">Remove sample data</button>
         </div>
     }
@@ -34,6 +34,19 @@
         </div>
 
         <div class="hist_filters_right">
+            <label class="hist_search">
+                <span class="material-symbols-outlined hist_search_icon" aria-hidden="true">search</span>
+                <input #searchInput type="text" autocomplete="off"
+                       placeholder="Search ID or product…"
+                       aria-label="Search by transaction ID or product"
+                       [value]="query()" (input)="onSearch(searchInput.value)">
+                @if (query()) {
+                    <button type="button" class="hist_search_clear" aria-label="Clear search" (click)="clearSearch()">
+                        <span class="material-symbols-outlined" aria-hidden="true">close</span>
+                    </button>
+                }
+            </label>
+
             <div class="hist_dropdown">
                 <button type="button" class="hist_select" aria-haspopup="listbox"
                         [attr.aria-expanded]="menuOpen()" (click)="toggleMenu($event)">
@@ -73,9 +86,13 @@
 
             <dl class="hist_summary">
                 <div><dt>Sales</dt><dd>{{ summary().count }}</dd></div>
-                <div><dt>Revenue</dt><dd>{{ money(summary().revenue) }}</dd></div>
+                <div><dt>Net revenue</dt><dd>{{ money(summary().revenue) }}</dd></div>
                 <div><dt>Avg. ticket</dt><dd>{{ money(summary().average) }}</dd></div>
                 <div><dt>Cash / Card</dt><dd>{{ summary().cash }} / {{ summary().card }}</dd></div>
+                <div class="is-refund">
+                    <dt>Refunded</dt>
+                    <dd>{{ summary().refundedCount }} · {{ money(summary().refundedAmount) }}</dd>
+                </div>
             </dl>
 
             <div class="hist_table_wrap">
@@ -86,13 +103,15 @@
                             <th scope="col">Date / Time</th>
                             <th scope="col" class="is-right">Items</th>
                             <th scope="col">Payment</th>
+                            <th scope="col">Status</th>
                             <th scope="col" class="is-right">Total</th>
                             <th scope="col" class="is-center"><span class="hist_sr">Actions</span></th>
                         </tr>
                     </thead>
                     <tbody>
                         @for (s of visible(); track s.id) {
-                            <tr [class.is-selected]="selected()?.id === s.id" (click)="select(s)">
+                            <tr [class.is-selected]="selected()?.id === s.id"
+                                [class.is-refunded]="s.status === 'refunded'" (click)="select(s)">
                                 <td>
                                     <button type="button" class="hist_id" [attr.aria-pressed]="selected()?.id === s.id"
                                             (click)="select(s)">#{{ s.id }}</button>
@@ -103,12 +122,17 @@
                                 </td>
                                 <td class="is-right hist_num">{{ itemCount(s) }}</td>
                                 <td>
-                                    <span class="hist_method" [class.is-card]="s.method === 'card'">
+                                    <span class="hist_method">
                                         <span class="material-symbols-outlined" aria-hidden="true">{{ s.method === 'cash' ? 'payments' : 'credit_card' }}</span>
                                         {{ methodName(s.method) }}
                                     </span>
                                 </td>
-                                <td class="is-right hist_total">{{ money(s.total) }}</td>
+                                <td>
+                                    <span class="hist_status" [class.is-refunded]="s.status === 'refunded'">{{ statusName(s) }}</span>
+                                </td>
+                                <td class="is-right hist_total" [class.is-refunded]="s.status === 'refunded'">
+                                    {{ s.status === 'refunded' ? '-' : '' }}{{ money(s.total) }}
+                                </td>
                                 <td class="is-center">
                                     <button type="button" class="hist_icon_btn hist_icon_btn--delete"
                                             [attr.aria-label]="'Delete sale ' + s.id"
@@ -119,7 +143,7 @@
                             </tr>
                         } @empty {
                             <tr class="hist_empty_row">
-                                <td colspan="6">
+                                <td colspan="7">
                                     <div class="hist_empty">
                                         <span class="material-symbols-outlined" aria-hidden="true">receipt_long</span>
                                         @if (totalCount() === 0) {
@@ -127,6 +151,7 @@
                                             <small>Completed sales from the Sales screen will appear here.</small>
                                         } @else {
                                             <p>No sales match these filters.</p>
+                                            @if (query().trim()) { <small>Nothing found for "{{ query().trim() }}".</small> }
                                             <button type="button" class="hist_btn" (click)="clearFilters()">Clear filters</button>
                                         }
                                     </div>
@@ -168,13 +193,19 @@
                     <h2>#{{ s.id }}</h2>
                     <p class="hist_detail_date">{{ s.date | date:'MMM d, y · h:mm:ss a' }}</p>
                     <div class="hist_tags">
-                        <span class="hist_tag hist_tag--ok">COMPLETED</span>
+                        <span class="hist_tag" [class.hist_tag--ok]="s.status === 'completed'"
+                              [class.hist_tag--refund]="s.status === 'refunded'">{{ statusName(s) }}</span>
                         <span class="hist_tag">
                             <span class="material-symbols-outlined" aria-hidden="true">{{ s.method === 'cash' ? 'payments' : 'credit_card' }}</span>
                             {{ methodName(s.method).toUpperCase() }}
                         </span>
                         @if (s.demo) { <span class="hist_tag hist_tag--sample">SAMPLE</span> }
                     </div>
+                    @if (s.status === 'refunded' && s.refundedAt) {
+                        <p class="hist_refund_note">
+                            Refunded on {{ s.refundedAt | date:'MMM d, y · h:mm a' }}. This sale is excluded from revenue totals.
+                        </p>
+                    }
                 </div>
 
                 <div class="hist_detail_items">
@@ -200,7 +231,7 @@
                             <div class="is-discount"><dt>Discount</dt><dd>-{{ money(s.discount) }}</dd></div>
                         }
                         <div><dt>Tax ({{ taxPct(s) }}%)</dt><dd>{{ money(s.tax) }}</dd></div>
-                        <div class="is-total"><dt>Total</dt><dd>{{ money(s.total) }}</dd></div>
+                        <div class="is-total"><dt>Total</dt><dd [class.is-refunded]="s.status === 'refunded'">{{ money(s.total) }}</dd></div>
                         @if (s.method === 'cash' && s.cashReceived !== null) {
                             <div class="is-extra"><dt>Cash received</dt><dd>{{ money(s.cashReceived) }}</dd></div>
                             <div class="is-extra"><dt>Change</dt><dd>{{ money(s.change) }}</dd></div>
@@ -208,11 +239,18 @@
                     </dl>
 
                     <div class="hist_detail_actions">
-                        <button type="button" class="hist_btn" (click)="downloadReceipt(s)">
-                            <span class="material-symbols-outlined" aria-hidden="true">receipt_long</span>
-                            Receipt (.txt)
+                        <button type="button" class="hist_btn" (click)="printReceipt(s)">
+                            <span class="material-symbols-outlined" aria-hidden="true">print</span>
+                            Print receipt
                         </button>
-                        <button type="button" class="hist_btn hist_btn--danger-outline" (click)="openDelete(s)">
+                        @if (s.status === 'completed') {
+                            <button type="button" class="hist_btn hist_btn--warn-outline" (click)="openRefund(s)">
+                                <span class="material-symbols-outlined" aria-hidden="true">undo</span>
+                                Refund
+                            </button>
+                        }
+                        <button type="button" class="hist_btn hist_btn--danger-outline"
+                                [class.hist_btn--wide]="s.status === 'completed'" (click)="openDelete(s)">
                             <span class="material-symbols-outlined" aria-hidden="true">delete</span>
                             Delete sale
                         </button>
@@ -235,7 +273,7 @@
         </div>
     }
 
-    <!-- ═════════ Modal (exportar / eliminar) ═════════ -->
+    <!-- ═════════ Modal (exportar / reembolsar / eliminar) ═════════ -->
     <dialog #modal class="hist_modal" aria-labelledby="hist_modal_title"
             (close)="onModalClosed()" (click)="onBackdropClick($event)">
         @switch (modalType()) {
@@ -250,7 +288,8 @@
                     </header>
 
                     <p class="hist_modal_text">
-                        Exports the <strong>{{ filtered().length }}</strong> sale(s) that match the current filters.
+                        Exports the <strong>{{ filtered().length }}</strong> record(s) that match the current filters
+                        and search. Refunded sales are listed but excluded from the revenue totals.
                     </p>
 
                     <div class="hist_formats" role="radiogroup" aria-label="Export format">
@@ -287,6 +326,33 @@
                 </div>
             }
 
+            @case ('refund') {
+                @if (target(); as t) {
+                    <div class="hist_modal_card">
+                        <div class="hist_modal_icon hist_modal_icon--warn"><span class="material-symbols-outlined" aria-hidden="true">undo</span></div>
+                        <h2 id="hist_modal_title">Refund this sale?</h2>
+                        <p class="hist_modal_text">
+                            <strong>#{{ t.id }}</strong> · {{ t.date | date:'MMM d, y, h:mm a' }}<br>
+                            {{ itemCount(t) }} item(s) · {{ methodName(t.method) }} · <strong>{{ money(t.total) }}</strong>
+                        </p>
+                        <p class="hist_note">
+                            The sale stays in the history marked as <strong>REFUNDED</strong> and its
+                            {{ money(t.total) }} is removed from the revenue in History and Dashboard.
+                            This cannot be undone.
+                        </p>
+                        <label class="hist_check">
+                            <input type="checkbox" [checked]="restoreStock()"
+                                   (change)="restoreStock.set($any($event.target).checked)">
+                            <span>Return the {{ itemCount(t) }} item(s) to inventory stock</span>
+                        </label>
+                        <div class="hist_modal_actions">
+                            <button type="button" class="hist_btn" data-autofocus (click)="closeModal()">Cancel</button>
+                            <button type="button" class="hist_btn hist_btn--danger" (click)="confirmRefund()">Yes, refund</button>
+                        </div>
+                    </div>
+                }
+            }
+
             @case ('delete') {
                 @if (target(); as t) {
                     <div class="hist_modal_card">
@@ -297,13 +363,18 @@
                             {{ itemCount(t) }} item(s) · {{ methodName(t.method) }} · <strong>{{ money(t.total) }}</strong>
                         </p>
                         <p class="hist_note">
-                            The sale is permanently removed from the history and from the revenue totals. This cannot be undone.
+                            Use delete to remove a sale registered by mistake. It disappears from the history
+                            for good. To keep a record of a returned purchase, use <strong>Refund</strong> instead.
                         </p>
-                        <label class="hist_check">
-                            <input type="checkbox" [checked]="restoreStock()"
-                                   (change)="restoreStock.set($any($event.target).checked)">
-                            <span>Return the {{ itemCount(t) }} item(s) to inventory stock</span>
-                        </label>
+                        @if (t.status === 'completed') {
+                            <label class="hist_check">
+                                <input type="checkbox" [checked]="restoreStock()"
+                                       (change)="restoreStock.set($any($event.target).checked)">
+                                <span>Return the {{ itemCount(t) }} item(s) to inventory stock</span>
+                            </label>
+                        } @else {
+                            <p class="hist_modal_text">This sale was already refunded, so the inventory stock is not changed.</p>
+                        }
                         <div class="hist_modal_actions">
                             <button type="button" class="hist_btn" data-autofocus (click)="closeModal()">Cancel</button>
                             <button type="button" class="hist_btn hist_btn--danger" (click)="confirmDelete()">Yes, delete</button>

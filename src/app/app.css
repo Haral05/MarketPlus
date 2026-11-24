@@ -54,6 +54,20 @@
     transition-duration: .01ms !important;
     scroll-behavior: auto !important;
 }
+.div_logo_container{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    user-select: none;
+}
+.image_container{
+    height: 40px;
+    width: 40px;
+    background-image: url('/Gemini_Generated_Image_8loo418loo418loo.jpg');
+    background-size: cover;
+    border-radius: 8px;
+    
+}
 
 /* ═════════ Barra de navegación ═════════ */
 .nav_section{
