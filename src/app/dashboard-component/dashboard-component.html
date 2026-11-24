@@ -1,0 +1,162 @@
+<div class="dashboard_container">
+    <div class="div_dashboard_sales_overview">
+        <div class="div_sales_overview">
+            <div class="sales_overview_title">
+                <h2>Sales Overview</h2>
+                <p>Real-time metrics for today, {{ fecha | date:'MMM d' }}</p>
+            </div>
+            <div class="sales_overview_buttons">
+                <button>
+                    <span class="material-symbols-outlined">download</span>
+                    <p>Export Report</p>
+                </button>
+            </div>
+        </div>
+        <div class="div_sales_metrics_container">
+            <div class="div_sales_metrics">
+                <div><p>TOTAL SALES TODAY</p><span class="material-symbols-outlined">attach_money</span></div>
+                <h3>$ 140,55</h3>
+            </div>
+            <div class="div_sales_metrics">
+                <div><p>TRANSACTIONS</p><span class="material-symbols-outlined">swap_horiz</span></div>
+                <h3>453</h3>
+            </div>
+            <div class="div_sales_metrics">
+                <div><p>CASH</p><span class="material-symbols-outlined">payments</span></div>
+                <h3>213</h3>
+            </div>
+            <div class="div_sales_metrics">
+                <div><p>Gross Profit</p><span class="material-symbols-outlined">trending_up</span></div>
+                <h3>$ 40,57</h3>
+            </div>
+        </div>
+    </div>
+
+    <div class="div_chart_container">
+        <div class="div_chart_container_1">
+            <div class="chart_card">
+                <div class="chart_header">
+                    <h3>Sales Trend (Weekly)</h3>
+                    <span class="material-symbols-outlined">more_vert</span>
+                </div>
+                <div class="chart_body">
+                    <canvas #miGrafica></canvas>
+                </div>
+            </div>
+        
+            <div class="chart_card">
+                <div class="chart_header">
+                    <h3>Top Selling Products</h3>
+                    <button class="btn_toggle">By Volume</button>
+                </div>
+                <div class="chart_body">
+                    <canvas #miGraficaBarras></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="div_chart_container_2">
+
+            <div class="div_chart_title">
+                <div><p>Recent Activity</p></div>
+                <div><a routerLink="/history">View All</a></div>
+            </div>
+
+            <div class="div_chart_recent">
+                <div class="div_chart_recent_item">
+                    <div>
+                        <span class="material-symbols-outlined">check_circle</span>
+                        <div>
+                            <p>#TRX-8902</p>
+                            <p class="p_chart_item_time"> 10:43 AM ~ Card </p>
+                        </div>
+                    </div>
+                    <div>
+                        <p class="p_chart_item_money">$1442.5</p>
+                        <p class="p_chart_item_paid">PAID</p>
+                    </div>
+                </div>
+            </div>
+            <div class="div_chart_recent">
+                <div class="div_chart_recent_item">
+                    <div>
+                        <span class="material-symbols-outlined">check_circle</span>
+                        <div>
+                            <p>#TRX-8902</p>
+                            <p class="p_chart_item_time"> 10:43 AM ~ Card </p>
+                        </div>
+                    </div>
+                    <div>
+                        <p class="p_chart_item_money">$1442.5</p>
+                        <p class="p_chart_item_paid">PAID</p>
+                    </div>
+                </div>
+            </div>
+            <div class="div_chart_recent">
+                <div class="div_chart_recent_item">
+                    <div>
+                        <span class="material-symbols-outlined" style="color: #93000a; background-color: #d88f93;">cancel</span>
+                        <div>
+                            <p>#TRX-8902</p>
+                            <p class="p_chart_item_time"> 10:43 AM ~ Card </p>
+                        </div>
+                    </div>
+                    <div>
+                        <p class="p_chart_item_money">$1442.5</p>
+                        <p class="p_chart_item_paid" style="color: #93000a; background-color: #d88f93;">VOID</p>
+                    </div>
+                </div>
+            </div>
+            <div class="div_chart_recent">
+                <div class="div_chart_recent_item">
+                    <div>
+                        <span class="material-symbols-outlined">check_circle</span>
+                        <div>
+                            <p>#TRX-8902</p>
+                            <p class="p_chart_item_time"> 10:43 AM ~ Card </p>
+                        </div>
+                    </div>
+                    <div>
+                        <p class="p_chart_item_money">$1442.5</p>
+                        <p class="p_chart_item_paid">PAID</p>
+                    </div>
+                </div>
+            </div>
+            <div class="div_chart_recent">
+                <div class="div_chart_recent_item">
+                    <div>
+                        <span class="material-symbols-outlined">check_circle</span>
+                        <div>
+                            <p>#TRX-8902</p>
+                            <p class="p_chart_item_time"> 10:43 AM ~ Card </p>
+                        </div>
+                    </div>
+                    <div>
+                        <p class="p_chart_item_money">$1442.5</p>
+                        <p class="p_chart_item_paid">PAID</p>
+                    </div>
+                </div>
+            </div>
+            <div class="div_chart_recent">
+                <div class="div_chart_recent_item">
+                    <div>
+                        <span class="material-symbols-outlined">check_circle</span>
+                        <div>
+                            <p>#TRX-8902</p>
+                            <p class="p_chart_item_time"> 10:43 AM ~ Card </p>
+                        </div>
+                    </div>
+                    <div>
+                        <p class="p_chart_item_money">$1442.5</p>
+                        <p class="p_chart_item_paid">PAID</p>
+                    </div>
+                </div>
+            </div>
+
+            
+
+        </div>
+    </div>
+    
+
+</div>

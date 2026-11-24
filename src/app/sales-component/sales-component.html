@@ -1,0 +1,241 @@
+<div class="div_sales_container">
+    <div class="div_sales_search_container">
+        <div class="div_sales_search">
+            <input type="text" #barcodeInput placeholder="F1*  Scan barcode..."
+                   aria-label="Scan barcode" (keydown.enter)="getProduct($event)">
+            <i class="material-symbols-outlined" role="button" tabindex="0" aria-label="Focus barcode input"
+               (click)="focusBarcode()" (keydown.enter)="focusBarcode()">barcode_scanner</i>
+        </div>
+        <div class="div_sales_search">
+            <input type="text" #searchInput placeholder="Search name..." aria-label="Search by name"
+                   (keydown.enter)="getProductByName(searchInput.value)">
+            <i class="material-symbols-outlined" role="button" tabindex="0" aria-label="Search"
+               (click)="getProductByName(searchInput.value)"
+               (keydown.enter)="getProductByName(searchInput.value)">search</i>
+        </div>
+
+        <div class="div_sales_response_container">
+            <div class="div_sales_response_search"><p>Product</p></div>
+            <div class="div_sales_response">
+                @if (productSelected) {
+                    <div class="div_sales_response_item">
+                        <div class="div_sales_response_item_image_container">
+                            <div class="div_sales_response_item_image">
+                                <i class="material-symbols-outlined">inventory_2</i>
+                            </div>
+                            <h3>{{ productSelected.name }}</h3>
+                        </div>
+                        <div class="div_sales_response_item_character">
+                            <p><span>ID</span> <span>{{ productSelected.id }}</span></p>
+                            <p><span>Name</span> <span>{{ productSelected.name }}</span></p>
+                            <p><span>Price</span> <span>${{ productSelected.price | number:'1.2-2' }}</span></p>
+                            <p><span>Stock</span>
+                                <span class="stock stock--{{ stockLevel(productSelected) }}">{{ available(productSelected) }}</span>
+                            </p>
+                        </div>
+                    </div>
+                } @else {
+                    <div class="sales_empty">
+                        <i class="material-symbols-outlined">qr_code_scanner</i>
+                        <p>Scan or search a product to see its details</p>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="div_sales_carry_container">
+        <div class="div_sales_carry_date">
+            <p>{{ fechaActual | date:'MMM, dd h:mm a' }}</p>
+        </div>
+        <div class="div_sales_carry_description">
+            <p>QUANTITY</p>
+            <p>ITEM DESCRIPTION</p>
+            <p>TOTAL PRICE</p>
+        </div>
+
+        <div class="div_sales_carry_products">
+            @for (item of getCarry(); track item.id) {
+                <div class="div_sales_carry_products_item">
+                    <div class="div_sales_carry_products_item_quantity-control">
+                        <button type="button" aria-label="Remove one" (click)="lessCarry(item)">−</button>
+                        <output aria-live="polite">{{ item.inCarry }}</output>
+                        <button type="button" aria-label="Add one" (click)="addCarry(item)">+</button>
+                    </div>
+                    <div class="div_sales_carry_products_item-1">
+                        <div>
+                            <p>{{ item.name }}</p>
+                            <p>Unit Price: ${{ item.price | number:'1.2-2' }}</p>
+                        </div>
+                    </div>
+                    <div class="div_sales_carry_products_item-2">
+                        <p>${{ item.inCarry * item.price | number:'1.2-2' }}</p>
+                    </div>
+                </div>
+            } @empty {
+                <div class="sales_empty">
+                    <i class="material-symbols-outlined">shopping_cart</i>
+                    <p>The cart is empty</p>
+                </div>
+            }
+        </div>
+
+        <div class="div_sales_carry_products_buttons">
+            <div class="div_sales_carry_products_buttons-1">
+                <div><p>Subtotal</p><p>${{ subtotal | number:'1.2-2' }}</p></div>
+                <div><p>Tax (8.25%)</p><p>${{ tax | number:'1.2-2' }}</p></div>
+                <div class="row_discount"><p>Discount</p><p>-${{ discount | number:'1.2-2' }}</p></div>
+            </div>
+            <div class="div_sales_carry_products_buttons-2">
+                <div class="div_sales_carry_products_buttons-2-total">
+                    <p>Total</p>
+                    <p>${{ totalp | number:'1.2-2' }}</p>
+                </div>
+                <div class="div_sales_carry_products_buttons-2-buttons">
+                    <div class="sales_actions_row">
+                        <button type="button" class="sales_btn sales_btn--discount" (click)="openDiscount()">Discount</button>
+                        <button type="button" class="sales_btn sales_btn--void" (click)="requestVoid()">Void</button>
+                    </div>
+                    <button type="button" class="sales_btn_pay" (click)="openPay()">
+                        <i class="material-symbols-outlined">credit_card</i>
+                        <span>Pay ${{ totalp | number:'1.2-2' }}</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═════════ Modal ═════════ -->
+    <dialog #modal class="sales_modal" (close)="onModalClosed()" (click)="onBackdropClick($event)"
+            aria-labelledby="sales_modal_title">
+        @switch (modalType) {
+
+            @case ('info') {
+                <div class="sales_modal_card">
+                    <div class="sales_modal_icon sales_modal_icon--{{ modalTone }}">
+                        <i class="material-symbols-outlined">{{ modalTone === 'error' ? 'error' : 'warning' }}</i>
+                    </div>
+                    <h2 id="sales_modal_title">{{ modalTitle }}</h2>
+                    <p class="sales_modal_text">{{ modalMessage }}</p>
+                    <div class="sales_modal_actions">
+                        <button type="button" class="sales_btn sales_btn--primary" autofocus (click)="closeModal()">OK</button>
+                    </div>
+                </div>
+            }
+
+            @case ('confirmVoid') {
+                <div class="sales_modal_card">
+                    <div class="sales_modal_icon sales_modal_icon--error"><i class="material-symbols-outlined">delete</i></div>
+                    <h2 id="sales_modal_title">Void this sale?</h2>
+                    <p class="sales_modal_text">All {{ getCarry().length }} product(s) will be removed from the cart. This cannot be undone.</p>
+                    <div class="sales_modal_actions">
+                        <button type="button" class="sales_btn" autofocus (click)="closeModal()">Cancel</button>
+                        <button type="button" class="sales_btn sales_btn--danger" (click)="confirmVoid()">Yes, void</button>
+                    </div>
+                </div>
+            }
+
+            @case ('discount') {
+                <div class="sales_modal_card">
+                    <h2 id="sales_modal_title">Apply discount</h2>
+                    <div class="sales_segment" role="radiogroup" aria-label="Discount type">
+                        <button type="button" role="radio" [attr.aria-checked]="draftMode === 'percent'"
+                                [class.is-active]="draftMode === 'percent'" (click)="draftMode = 'percent'">Percent (%)</button>
+                        <button type="button" role="radio" [attr.aria-checked]="draftMode === 'amount'"
+                                [class.is-active]="draftMode === 'amount'" (click)="draftMode = 'amount'">Amount ($)</button>
+                    </div>
+                    <label class="sales_field">
+                        <span>{{ draftMode === 'percent' ? 'Percentage (1–100)' : 'Amount (max $' + (subtotal | number:'1.2-2') + ')' }}</span>
+                        <input type="number" min="0" step="any" [(ngModel)]="draftValue" autofocus
+                               (keydown.enter)="applyDiscount()">
+                    </label>
+                    @if (draftValue !== null && draftInvalid) {
+                        <p class="sales_modal_error">Enter a valid value for this discount type.</p>
+                    }
+                    <div class="sales_modal_actions">
+                        @if (discount > 0) {
+                            <button type="button" class="sales_btn sales_btn--danger-ghost" (click)="removeDiscount()">Remove</button>
+                        }
+                        <button type="button" class="sales_btn" (click)="closeModal()">Cancel</button>
+                        <button type="button" class="sales_btn sales_btn--primary" [disabled]="draftInvalid" (click)="applyDiscount()">Apply</button>
+                    </div>
+                </div>
+            }
+
+            @case ('pay') {
+                <div class="sales_modal_card sales_modal_card--wide">
+                    <h2 id="sales_modal_title">Payment</h2>
+
+                    <dl class="sales_summary">
+                        <div><dt>Subtotal</dt><dd>${{ subtotal | number:'1.2-2' }}</dd></div>
+                        <div class="is-discount"><dt>Discount</dt><dd>-${{ discount | number:'1.2-2' }}</dd></div>
+                        <div><dt>Tax (8.25%)</dt><dd>${{ tax | number:'1.2-2' }}</dd></div>
+                        <div class="is-total"><dt>Total to pay</dt><dd>${{ totalp | number:'1.2-2' }}</dd></div>
+                    </dl>
+
+                    <div class="sales_methods" role="radiogroup" aria-label="Payment method">
+                        <button type="button" role="radio" [attr.aria-checked]="payMethod === 'cash'"
+                                [class.is-active]="payMethod === 'cash'" (click)="payMethod = 'cash'">
+                            <i class="material-symbols-outlined">payments</i> Cash
+                        </button>
+                        <button type="button" role="radio" [attr.aria-checked]="payMethod === 'card'"
+                                [class.is-active]="payMethod === 'card'" (click)="payMethod = 'card'">
+                            <i class="material-symbols-outlined">credit_card</i> Card
+                        </button>
+                    </div>
+
+                    @if (payMethod === 'cash') {
+                        <label class="sales_field">
+                            <span>Cash received</span>
+                            <input type="number" min="0" step="0.01" [(ngModel)]="cashReceived" autofocus
+                                   (keydown.enter)="confirmPay()">
+                        </label>
+                        <div class="sales_quick">
+                            <button type="button" (click)="setCash('exact')">Exact</button>
+                            @for (v of quickCash; track v) {
+                                <button type="button" (click)="setCash(v)">${{ v }}</button>
+                            }
+                        </div>
+                        @if (cashReceived !== null) {
+                            @if (change >= 0) {
+                                <p class="sales_change sales_change--ok">Change: <strong>${{ change | number:'1.2-2' }}</strong></p>
+                            } @else {
+                                <p class="sales_change sales_change--short">Missing: <strong>${{ -change | number:'1.2-2' }}</strong></p>
+                            }
+                        }
+                    } @else {
+                        <p class="sales_modal_text">Charge <strong>${{ totalp | number:'1.2-2' }}</strong> on the card terminal, then confirm.</p>
+                    }
+
+                    <div class="sales_modal_actions">
+                        <button type="button" class="sales_btn" (click)="closeModal()">Cancel</button>
+                        <button type="button" class="sales_btn sales_btn--primary" [disabled]="!canConfirmPay" (click)="confirmPay()">
+                            Confirm payment
+                        </button>
+                    </div>
+                </div>
+            }
+
+            @case ('success') {
+                @if (receipt; as r) {
+                    <div class="sales_modal_card">
+                        <div class="sales_modal_icon sales_modal_icon--ok"><i class="material-symbols-outlined">check_circle</i></div>
+                        <h2 id="sales_modal_title">Payment completed</h2>
+                        <dl class="sales_summary">
+                            <div><dt>Sale #</dt><dd>{{ r.number }}</dd></div>
+                            <div><dt>Items</dt><dd>{{ r.items }}</dd></div>
+                            <div><dt>Method</dt><dd>{{ r.method === 'cash' ? 'Cash' : 'Card' }}</dd></div>
+                            <div class="is-total"><dt>Total</dt><dd>${{ r.total | number:'1.2-2' }}</dd></div>
+                            @if (r.method === 'cash') {
+                                <div><dt>Change</dt><dd>${{ r.change | number:'1.2-2' }}</dd></div>
+                            }
+                        </dl>
+                        <div class="sales_modal_actions">
+                            <button type="button" class="sales_btn sales_btn--primary" autofocus (click)="closeModal()">New sale</button>
+                        </div>
+                    </div>
+                }
+            }
+        }
+    </dialog>
+</div>

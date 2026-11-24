@@ -1,0 +1,118 @@
+<div class="inventory_container">
+    <div class="div_inventory_sort_container">
+        <div class="div_inventory_sort_container_items">
+            <div class="div_inventory_sort_item" (mouseenter)="sortItemShow(1)" (mouseleave)="sortItemHidden(1)" >
+                <p> {{sortCategorie}} </p>
+                <span class="material-symbols-outlined">keyboard_arrow_down</span>
+                <div class="div_inventory_sort_item_select1">
+                    <ul>
+                        @for(item of sortCategorieArray; track $index){
+                            <li (click)="selectCategorie($event)">{{item}}</li>
+                        }
+                        
+                    </ul>
+                </div>
+            </div>
+            <div class="div_inventory_sort_item"  (mouseenter)="sortItemShow(2)" (mouseleave)="sortItemHidden(2)">
+                <p> Stock: {{sortStock}} </p>
+                <span class="material-symbols-outlined">keyboard_arrow_down</span>
+                <div class="div_inventory_sort_item_select2">
+                    <ul>
+                        @for(item of sortStockArray; track $index){
+                            <li (click)="selectStock($event)">{{item}}</li>
+                        }
+                    </ul>
+                </div>
+
+            </div>
+        </div>
+        <div class="div_inventory_sort_container_items">
+            <div class="div_inventory_sort_item inv-item-3">
+                <span class="material-symbols-outlined">add</span>
+                <p>Add New Item</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="div_inventory_table_container">
+        <div class="div_inevntory_table_container">
+            <table>
+                <thead>
+                    <tr>
+                        <td>ID</td>
+                        <td>PRODUCT NAME</td>
+                        <td>CATEGORY</td>
+                        <td>PRICE</td>
+                        <td>STOCK LEVEL</td>
+                        <td style="text-align: center;">ACTIONS</td>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (item of visibleProducts(); track item.id) {
+                        <tr>
+                            <td> {{item.id}} </td>
+                            <td> {{item.name}} </td>
+                            <td> none </td>
+                            <td> {{item.price}} </td>
+                            <td style="font-size: 14px; font-weight: 600;"> 
+                                @if(item.total >= 15){
+                                    <p style="background-color: #6bff8f; color: #045a19; ">IN STOCK ({{item.total}})</p> 
+                                }@else if (item.total >=8 && item.total <15) {
+                                    <p style="background-color: #eccd7b; color: #775905;">MEDIUM STOCK ({{item.total}})</p>
+                                }@else if(item.total == 0){
+                                    <p style="background-color: #bbb; color: #444;">OUT OF STOCK ({{item.total}})</p> 
+                                }
+                                @else {
+                                    <p style="background-color: #f3a1a1; color: #7d0f0f;">LOW STOCK ({{item.total}})</p> 
+                                }
+                            </td>
+                            <td style="text-align: center;"> 
+                                <span class="material-symbols-outlined">edit</span> 
+                                <span class="material-symbols-outlined">delete</span> 
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
+                    <tr>
+                         <td colspan="6">
+                            <div class="pagination-container">
+
+                                <p class="pagination-info">
+                                    Mostrando {{ visibleProducts().length }} de {{ allProducts.length }} productos
+                                </p>
+                            
+                                <nav class="pagination">
+                            
+                                    <button class="page-btn nav-btn" (click)="prevPage()" [disabled]="currentPage() === 1">
+                                        ‹
+                                    </button>
+                            
+                                    @for (page of visiblePages(); track $index) {
+                                        @if (page === -1) {
+                                            <span class="dots">…</span>
+                                        } @else {
+                                            <button
+                                                class="page-btn"
+                                                [class.active]="page === currentPage()"
+                                                (click)="goToPage(page)">
+                                                {{ page }}
+                                            </button>
+                                        }
+                                    }
+                            
+                                    <button class="page-btn nav-btn" (click)="nextPage()" [disabled]="currentPage() === totalPages()">
+                                        ›
+                                    </button>
+                            
+                                </nav>
+                            
+                            </div>
+                         </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
