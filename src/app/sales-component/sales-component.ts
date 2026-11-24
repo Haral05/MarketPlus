@@ -27,6 +27,15 @@ interface SaleReceipt {
 export class SalesComponent {
   @ViewChild('modal') private modalRef!: ElementRef<HTMLDialogElement>;
   @ViewChild('barcodeInput') private barcodeRef!: ElementRef<HTMLInputElement>;
+  
+  // Scan bar focus F1
+  @HostListener('window:keydown', ['$event'])
+  handleKeydown(event: KeyboardEvent) {
+    if (event.key === 'F1') {
+      event.preventDefault();
+      this.barcodeRef.nativeElement.focus();
+    }
+  }
 
   protected readonly TAX_RATE = 0.0825;
   protected readonly quickCash = [20, 50, 100];

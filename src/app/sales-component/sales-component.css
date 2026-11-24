@@ -1,9 +1,4 @@
-/* ═══════════════════════════════════════════
-   SALES COMPONENT
-   La paleta (--s-*) y el modo oscuro se definen en app.css
-   ═══════════════════════════════════════════ */
-
-   .div_sales_container{
+.div_sales_container{
     width: calc(100% - 250px);
     position: absolute;
     right: 0;
@@ -12,7 +7,6 @@
     background-color: var(--s-bg);
     color: var(--s-text);
 }
-
 /* ───────── Columna izquierda: búsqueda ───────── */
 .div_sales_search_container{
     width: 38%;
@@ -210,12 +204,17 @@
     padding-right: 26px;
 }
 .div_sales_carry_description{
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr);
 }
 .div_sales_carry_description p:first-child{
     padding-left: 26px;
 }
+.div_sales_carry_description p:nth-child(2){
+    text-align: center;
+}
 .div_sales_carry_description p:last-child{
+    text-align: right;
     padding-right: 26px;
 }
 .div_sales_carry_products{
@@ -229,19 +228,19 @@
 .div_sales_carry_products_item{
     width: 100%;
     display: grid;
-    grid-template-columns: 1fr 2fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr);
     align-items: center;
     border-bottom: 1px solid var(--s-border);
     padding: 8px 0;
 }
 .div_sales_carry_products_item-1{
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
+    text-align: center;
+    min-width: 0;
 }
 .div_sales_carry_products_item-1 p{
     overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 .div_sales_carry_products_item-1 p:first-child{
     font-weight: 600;
@@ -253,7 +252,7 @@
 .div_sales_carry_products_item-2{
     display: flex;
     justify-content: end;
-    padding-right: 10px;
+    padding-right: 26px;
 }
 .div_sales_carry_products_item-2 p:first-child{
     font-weight: 600;
@@ -417,7 +416,7 @@
     justify-content: center;
     align-items: center;
     gap: 8px;
-    width: 65.5%;
+    width: 68.5%;
     height: 70px;
     margin: 10px auto 0;
     border: none;

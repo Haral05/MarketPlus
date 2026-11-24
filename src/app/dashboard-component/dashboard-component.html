@@ -1,162 +1,248 @@
 <div class="dashboard_container">
-    <div class="div_dashboard_sales_overview">
-        <div class="div_sales_overview">
-            <div class="sales_overview_title">
-                <h2>Sales Overview</h2>
-                <p>Real-time metrics for today, {{ fecha | date:'MMM d' }}</p>
+
+    <!-- ═════════ Cabecera ═════════ -->
+    <header class="dash_header">
+        <div class="dash_title">
+            <h2>Sales Overview</h2>
+            <p>Real-time metrics for today, {{ fecha | date:'MMM d' }}</p>
+        </div>
+        <button type="button" class="dash_btn dash_btn--primary" aria-haspopup="dialog" (click)="openExport()">
+            <span class="material-symbols-outlined" aria-hidden="true">download</span>
+            Export Report
+        </button>
+    </header>
+
+    <!-- ═════════ Métricas ═════════ -->
+    <section class="dash_metrics" aria-label="Key metrics">
+        @for (m of metrics; track m.label) {
+            <article class="dash_metric">
+                <div class="dash_metric_top">
+                    <p>{{ m.label }}</p>
+                    <span class="material-symbols-outlined" aria-hidden="true">{{ m.icon }}</span>
+                </div>
+                <h3>{{ m.value }}</h3>
+                <div class="dash_metric_foot">
+                    @if (m.delta !== null) {
+                        <span class="dash_delta" [class.is-up]="m.delta >= 0" [class.is-down]="m.delta < 0">
+                            <span class="material-symbols-outlined" aria-hidden="true">{{ m.delta >= 0 ? 'arrow_upward' : 'arrow_downward' }}</span>
+                            {{ pct(m.delta) }}
+                        </span>
+                        <span class="dash_hint">{{ m.deltaLabel }}</span>
+                    }
+                </div>
+                <p class="dash_hint dash_hint--block">{{ m.hint }}</p>
+            </article>
+        }
+    </section>
+
+    <div class="dash_grid">
+
+        <!-- ═════════ Columna izquierda: gráficos ═════════ -->
+        <div class="dash_col">
+
+            <!-- Tendencia semanal -->
+            <section class="dash_card">
+                <div class="dash_card_header">
+                    <div>
+                        <h3>Sales Trend (Weekly)</h3>
+                        <p class="dash_sub">Daily revenue compared with the previous week</p>
+                    </div>
+                    <div class="dash_menu_wrap">
+                        <button type="button" class="dash_icon_btn" aria-label="Chart options"
+                                aria-haspopup="menu" [attr.aria-expanded]="trendMenu()"
+                                (click)="toggleTrendMenu($event)">
+                            <span class="material-symbols-outlined" aria-hidden="true">more_vert</span>
+                        </button>
+                        @if (trendMenu()) {
+                            <ul class="dash_menu" role="menu">
+                                <li role="none">
+                                    <button type="button" role="menuitem" (click)="toggleTable()">
+                                        <span class="material-symbols-outlined" aria-hidden="true">{{ showTable() ? 'show_chart' : 'table_rows' }}</span>
+                                        {{ showTable() ? 'View chart' : 'View data table' }}
+                                    </button>
+                                </li>
+                                <li role="none">
+                                    <button type="button" role="menuitem" (click)="downloadTrendPng()">
+                                        <span class="material-symbols-outlined" aria-hidden="true">image</span>
+                                        Download as PNG
+                                    </button>
+                                </li>
+                            </ul>
+                        }
+                    </div>
+                </div>
+
+                <dl class="dash_stats">
+                    <div>
+                        <dt>Week total</dt>
+                        <dd>{{ money(weekSummary.total) }}</dd>
+                        <small class="dash_delta_text" [class.is-up]="weekSummary.change >= 0" [class.is-down]="weekSummary.change < 0">
+                            {{ pct(weekSummary.change) }} vs last week
+                        </small>
+                    </div>
+                    <div>
+                        <dt>Daily average</dt>
+                        <dd>{{ money(weekSummary.average) }}</dd>
+                        <small class="dash_hint">Across 7 days</small>
+                    </div>
+                    <div>
+                        <dt>Best day</dt>
+                        <dd>{{ weekSummary.bestDay }}</dd>
+                        <small class="dash_hint">{{ money(weekSummary.bestValue) }}</small>
+                    </div>
+                    <div>
+                        <dt>Last week</dt>
+                        <dd>{{ money(weekSummary.lastTotal) }}</dd>
+                        <small class="dash_hint">Previous total</small>
+                    </div>
+                </dl>
+
+                <div class="dash_chart" [hidden]="showTable()">
+                    <canvas #miGrafica role="img"
+                            aria-label="Line chart comparing daily sales of this week against last week"></canvas>
+                </div>
+
+                <div class="dash_table_wrap" [hidden]="!showTable()">
+                    <table class="dash_table">
+                        <caption class="dash_sr">Daily sales, this week versus last week</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">Day</th>
+                                <th scope="col" class="is-right">This week</th>
+                                <th scope="col" class="is-right">Last week</th>
+                                <th scope="col" class="is-right">Change</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (r of weekSummary.rows; track r.day) {
+                                <tr>
+                                    <th scope="row">{{ r.day }}</th>
+                                    <td class="is-right">{{ money(r.current) }}</td>
+                                    <td class="is-right dash_muted">{{ money(r.previous) }}</td>
+                                    <td class="is-right">
+                                        <span class="dash_delta_text" [class.is-up]="r.change >= 0" [class.is-down]="r.change < 0">{{ pct(r.change) }}</span>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <th scope="row">Total</th>
+                                <td class="is-right">{{ money(weekSummary.total) }}</td>
+                                <td class="is-right dash_muted">{{ money(weekSummary.lastTotal) }}</td>
+                                <td class="is-right">
+                                    <span class="dash_delta_text" [class.is-up]="weekSummary.change >= 0" [class.is-down]="weekSummary.change < 0">{{ pct(weekSummary.change) }}</span>
+                                </td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Productos más vendidos -->
+            <section class="dash_card">
+                <div class="dash_card_header">
+                    <div>
+                        <h3>Top Selling Products</h3>
+                        <p class="dash_sub">Top 5, ranked by {{ topMode() === 'volume' ? 'units sold' : 'revenue' }}</p>
+                    </div>
+                    <div class="dash_segment" role="radiogroup" aria-label="Rank products by">
+                        <button type="button" role="radio" [attr.aria-checked]="topMode() === 'volume'"
+                                [class.is-active]="topMode() === 'volume'" (click)="setTopMode('volume')">By Volume</button>
+                        <button type="button" role="radio" [attr.aria-checked]="topMode() === 'revenue'"
+                                [class.is-active]="topMode() === 'revenue'" (click)="setTopMode('revenue')">By Revenue</button>
+                    </div>
+                </div>
+
+                <div class="dash_chart dash_chart--bars">
+                    <canvas #miGraficaBarras role="img"
+                            aria-label="Horizontal bar chart of the five best selling products"></canvas>
+                </div>
+
+                <p class="dash_footnote">
+                    Top 5 total: <strong>{{ topTotals().units }} units</strong> · <strong>{{ money(topTotals().revenue) }}</strong>
+                </p>
+            </section>
+        </div>
+
+        <!-- ═════════ Columna derecha: actividad reciente ═════════ -->
+        <section class="dash_card dash_recent">
+            <div class="dash_card_header">
+                <div>
+                    <h3>Recent Activity</h3>
+                    <p class="dash_sub">{{ recentSummary }}</p>
+                </div>
+                <a class="dash_link" routerLink="/history">View All</a>
             </div>
-            <div class="sales_overview_buttons">
-                <button>
-                    <span class="material-symbols-outlined">download</span>
-                    <p>Export Report</p>
+
+            <ul class="dash_tx_list">
+                @for (t of recent; track t.id) {
+                    <li class="dash_tx">
+                        <div class="dash_tx_icon" [class.is-void]="t.status === 'void'">
+                            <span class="material-symbols-outlined" aria-hidden="true">{{ t.status === 'paid' ? 'check_circle' : 'cancel' }}</span>
+                        </div>
+                        <div class="dash_tx_info">
+                            <p class="dash_tx_id">{{ t.id }}</p>
+                            <p class="dash_tx_meta">{{ t.time }} · {{ t.method }} · {{ t.items }} {{ t.items === 1 ? 'item' : 'items' }}</p>
+                        </div>
+                        <div class="dash_tx_amount">
+                            <p class="dash_tx_money" [class.is-void]="t.status === 'void'">{{ money(t.amount) }}</p>
+                            <span class="dash_badge" [class.dash_badge--void]="t.status === 'void'">{{ t.status === 'paid' ? 'PAID' : 'VOID' }}</span>
+                        </div>
+                    </li>
+                }
+            </ul>
+        </section>
+    </div>
+
+    <!-- ═════════ Toast ═════════ -->
+    @if (toast(); as message) {
+        <div class="dash_toast" role="status" aria-live="polite">
+            <span class="material-symbols-outlined" aria-hidden="true">check_circle</span>
+            {{ message }}
+        </div>
+    }
+
+    <!-- ═════════ Modal: exportar reporte ═════════ -->
+    <dialog #exportModal class="dash_modal" aria-labelledby="export_title" (click)="onBackdropClick($event)">
+        <div class="dash_modal_card">
+            <header class="dash_modal_header">
+                <h2 id="export_title">Export report</h2>
+                <button type="button" class="dash_icon_btn" aria-label="Close" (click)="closeExport()">
+                    <span class="material-symbols-outlined" aria-hidden="true">close</span>
+                </button>
+            </header>
+
+            <p class="dash_modal_text">
+                Choose a format. The report includes today's metrics, the weekly trend,
+                top selling products and recent activity.
+            </p>
+
+            <div class="dash_formats" role="radiogroup" aria-label="Export format">
+                @for (f of formats; track f.id) {
+                    <button type="button" role="radio" class="dash_format"
+                            [attr.aria-checked]="exportFormat() === f.id"
+                            [class.is-active]="exportFormat() === f.id"
+                            [disabled]="!f.available"
+                            (click)="selectFormat(f.id)">
+                        <span class="material-symbols-outlined dash_format_icon" aria-hidden="true">{{ f.icon }}</span>
+                        <span class="dash_format_text">
+                            <strong>{{ f.label }}</strong>
+                            <small>{{ f.description }}</small>
+                        </span>
+                        @if (!f.available) { <span class="dash_soon">Coming soon</span> }
+                    </button>
+                }
+            </div>
+
+            <div class="dash_modal_actions">
+                <button type="button" class="dash_btn" (click)="closeExport()">Cancel</button>
+                <button type="button" class="dash_btn dash_btn--primary" autofocus
+                        [disabled]="exportFormat() !== 'txt'" (click)="exportReport()">
+                    <span class="material-symbols-outlined" aria-hidden="true">download</span>
+                    Export
                 </button>
             </div>
         </div>
-        <div class="div_sales_metrics_container">
-            <div class="div_sales_metrics">
-                <div><p>TOTAL SALES TODAY</p><span class="material-symbols-outlined">attach_money</span></div>
-                <h3>$ 140,55</h3>
-            </div>
-            <div class="div_sales_metrics">
-                <div><p>TRANSACTIONS</p><span class="material-symbols-outlined">swap_horiz</span></div>
-                <h3>453</h3>
-            </div>
-            <div class="div_sales_metrics">
-                <div><p>CASH</p><span class="material-symbols-outlined">payments</span></div>
-                <h3>213</h3>
-            </div>
-            <div class="div_sales_metrics">
-                <div><p>Gross Profit</p><span class="material-symbols-outlined">trending_up</span></div>
-                <h3>$ 40,57</h3>
-            </div>
-        </div>
-    </div>
-
-    <div class="div_chart_container">
-        <div class="div_chart_container_1">
-            <div class="chart_card">
-                <div class="chart_header">
-                    <h3>Sales Trend (Weekly)</h3>
-                    <span class="material-symbols-outlined">more_vert</span>
-                </div>
-                <div class="chart_body">
-                    <canvas #miGrafica></canvas>
-                </div>
-            </div>
-        
-            <div class="chart_card">
-                <div class="chart_header">
-                    <h3>Top Selling Products</h3>
-                    <button class="btn_toggle">By Volume</button>
-                </div>
-                <div class="chart_body">
-                    <canvas #miGraficaBarras></canvas>
-                </div>
-            </div>
-        </div>
-
-        <div class="div_chart_container_2">
-
-            <div class="div_chart_title">
-                <div><p>Recent Activity</p></div>
-                <div><a routerLink="/history">View All</a></div>
-            </div>
-
-            <div class="div_chart_recent">
-                <div class="div_chart_recent_item">
-                    <div>
-                        <span class="material-symbols-outlined">check_circle</span>
-                        <div>
-                            <p>#TRX-8902</p>
-                            <p class="p_chart_item_time"> 10:43 AM ~ Card </p>
-                        </div>
-                    </div>
-                    <div>
-                        <p class="p_chart_item_money">$1442.5</p>
-                        <p class="p_chart_item_paid">PAID</p>
-                    </div>
-                </div>
-            </div>
-            <div class="div_chart_recent">
-                <div class="div_chart_recent_item">
-                    <div>
-                        <span class="material-symbols-outlined">check_circle</span>
-                        <div>
-                            <p>#TRX-8902</p>
-                            <p class="p_chart_item_time"> 10:43 AM ~ Card </p>
-                        </div>
-                    </div>
-                    <div>
-                        <p class="p_chart_item_money">$1442.5</p>
-                        <p class="p_chart_item_paid">PAID</p>
-                    </div>
-                </div>
-            </div>
-            <div class="div_chart_recent">
-                <div class="div_chart_recent_item">
-                    <div>
-                        <span class="material-symbols-outlined" style="color: #93000a; background-color: #d88f93;">cancel</span>
-                        <div>
-                            <p>#TRX-8902</p>
-                            <p class="p_chart_item_time"> 10:43 AM ~ Card </p>
-                        </div>
-                    </div>
-                    <div>
-                        <p class="p_chart_item_money">$1442.5</p>
-                        <p class="p_chart_item_paid" style="color: #93000a; background-color: #d88f93;">VOID</p>
-                    </div>
-                </div>
-            </div>
-            <div class="div_chart_recent">
-                <div class="div_chart_recent_item">
-                    <div>
-                        <span class="material-symbols-outlined">check_circle</span>
-                        <div>
-                            <p>#TRX-8902</p>
-                            <p class="p_chart_item_time"> 10:43 AM ~ Card </p>
-                        </div>
-                    </div>
-                    <div>
-                        <p class="p_chart_item_money">$1442.5</p>
-                        <p class="p_chart_item_paid">PAID</p>
-                    </div>
-                </div>
-            </div>
-            <div class="div_chart_recent">
-                <div class="div_chart_recent_item">
-                    <div>
-                        <span class="material-symbols-outlined">check_circle</span>
-                        <div>
-                            <p>#TRX-8902</p>
-                            <p class="p_chart_item_time"> 10:43 AM ~ Card </p>
-                        </div>
-                    </div>
-                    <div>
-                        <p class="p_chart_item_money">$1442.5</p>
-                        <p class="p_chart_item_paid">PAID</p>
-                    </div>
-                </div>
-            </div>
-            <div class="div_chart_recent">
-                <div class="div_chart_recent_item">
-                    <div>
-                        <span class="material-symbols-outlined">check_circle</span>
-                        <div>
-                            <p>#TRX-8902</p>
-                            <p class="p_chart_item_time"> 10:43 AM ~ Card </p>
-                        </div>
-                    </div>
-                    <div>
-                        <p class="p_chart_item_money">$1442.5</p>
-                        <p class="p_chart_item_paid">PAID</p>
-                    </div>
-                </div>
-            </div>
-
-            
-
-        </div>
-    </div>
-    
-
+    </dialog>
 </div>

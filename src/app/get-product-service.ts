@@ -17,7 +17,7 @@ export class GetProductService {
         {id:10, name:'Zapato', price:52.4, total: 0, inCarry:0},
         {id:11, name:'Zapato', price:52.4, total: 0, inCarry:0},
         {id:12, name:'Zapato', price:52.4, total: 3, inCarry:0},
-        {id:13, name:'Zapato', price:52444.4, total: 1000, inCarry:0},
+        {id:13, name:'Zapato', price:52444444.4, total: 1000, inCarry:0},
         
         
     ]

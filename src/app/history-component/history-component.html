@@ -1,3 +1,316 @@
 <div class="history_container">
-    Hola!
+
+    @if (hasDemo()) {
+        <div class="hist_banner" role="note">
+            <span class="material-symbols-outlined" aria-hidden="true">info</span>
+            <p>Sample sales are loaded so you can try the filters. Real sales from the Sales screen appear here too.</p>
+            <button type="button" class="hist_link_btn" (click)="removeDemo()">Remove sample data</button>
+        </div>
+    }
+
+    <!-- ═════════ Filtros ═════════ -->
+    <section class="hist_filters" aria-label="Filters">
+        <div class="hist_dates">
+            <label class="hist_date">
+                <span>From</span>
+                <input #fromInput type="date" [value]="dateFrom()"
+                       [attr.max]="dateTo() || null"
+                       (change)="onFrom(fromInput.value)">
+            </label>
+            <span class="hist_to" aria-hidden="true">TO</span>
+            <label class="hist_date">
+                <span>To</span>
+                <input #toInput type="date" [value]="dateTo()"
+                       [attr.min]="dateFrom() || null"
+                       (change)="onTo(toInput.value)">
+            </label>
+        </div>
+
+        <div class="hist_presets" role="group" aria-label="Quick ranges">
+            @for (p of presets; track p.id) {
+                <button type="button" class="hist_chip" [class.is-active]="activePreset() === p.id"
+                        [attr.aria-pressed]="activePreset() === p.id" (click)="setPreset(p.id)">{{ p.label }}</button>
+            }
+        </div>
+
+        <div class="hist_filters_right">
+            <div class="hist_dropdown">
+                <button type="button" class="hist_select" aria-haspopup="listbox"
+                        [attr.aria-expanded]="menuOpen()" (click)="toggleMenu($event)">
+                    <span>{{ methodLabel() }}</span>
+                    <span class="material-symbols-outlined hist_select_arrow" aria-hidden="true">keyboard_arrow_down</span>
+                </button>
+                @if (menuOpen()) {
+                    <ul class="hist_menu" role="listbox" aria-label="Filter by payment method">
+                        @for (o of methodOptions; track o.value) {
+                            <li role="presentation">
+                                <button type="button" role="option" [attr.aria-selected]="o.value === methodFilter()"
+                                        (click)="selectMethod(o.value)">{{ o.label }}</button>
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+
+            @if (hasFilters()) {
+                <button type="button" class="hist_link_btn" (click)="clearFilters()">
+                    <span class="material-symbols-outlined" aria-hidden="true">filter_alt_off</span>
+                    Clear
+                </button>
+            }
+
+            <button type="button" class="hist_btn hist_btn--primary" aria-haspopup="dialog" (click)="openExport()">
+                <span class="material-symbols-outlined" aria-hidden="true">download</span>
+                Export
+            </button>
+        </div>
+    </section>
+
+    <div class="hist_main">
+
+        <!-- ═════════ Lista de ventas ═════════ -->
+        <section class="hist_card hist_list" aria-label="Sales list">
+
+            <dl class="hist_summary">
+                <div><dt>Sales</dt><dd>{{ summary().count }}</dd></div>
+                <div><dt>Revenue</dt><dd>{{ money(summary().revenue) }}</dd></div>
+                <div><dt>Avg. ticket</dt><dd>{{ money(summary().average) }}</dd></div>
+                <div><dt>Cash / Card</dt><dd>{{ summary().cash }} / {{ summary().card }}</dd></div>
+            </dl>
+
+            <div class="hist_table_wrap">
+                <table class="hist_table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Transaction ID</th>
+                            <th scope="col">Date / Time</th>
+                            <th scope="col" class="is-right">Items</th>
+                            <th scope="col">Payment</th>
+                            <th scope="col" class="is-right">Total</th>
+                            <th scope="col" class="is-center"><span class="hist_sr">Actions</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (s of visible(); track s.id) {
+                            <tr [class.is-selected]="selected()?.id === s.id" (click)="select(s)">
+                                <td>
+                                    <button type="button" class="hist_id" [attr.aria-pressed]="selected()?.id === s.id"
+                                            (click)="select(s)">#{{ s.id }}</button>
+                                </td>
+                                <td>
+                                    <span class="hist_date_main">{{ s.date | date:'MMM d, y' }}</span>
+                                    <span class="hist_date_sub">{{ s.date | date:'h:mm a' }}</span>
+                                </td>
+                                <td class="is-right hist_num">{{ itemCount(s) }}</td>
+                                <td>
+                                    <span class="hist_method" [class.is-card]="s.method === 'card'">
+                                        <span class="material-symbols-outlined" aria-hidden="true">{{ s.method === 'cash' ? 'payments' : 'credit_card' }}</span>
+                                        {{ methodName(s.method) }}
+                                    </span>
+                                </td>
+                                <td class="is-right hist_total">{{ money(s.total) }}</td>
+                                <td class="is-center">
+                                    <button type="button" class="hist_icon_btn hist_icon_btn--delete"
+                                            [attr.aria-label]="'Delete sale ' + s.id"
+                                            (click)="$event.stopPropagation(); openDelete(s)">
+                                        <span class="material-symbols-outlined" aria-hidden="true">delete</span>
+                                    </button>
+                                </td>
+                            </tr>
+                        } @empty {
+                            <tr class="hist_empty_row">
+                                <td colspan="6">
+                                    <div class="hist_empty">
+                                        <span class="material-symbols-outlined" aria-hidden="true">receipt_long</span>
+                                        @if (totalCount() === 0) {
+                                            <p>No sales yet.</p>
+                                            <small>Completed sales from the Sales screen will appear here.</small>
+                                        } @else {
+                                            <p>No sales match these filters.</p>
+                                            <button type="button" class="hist_btn" (click)="clearFilters()">Clear filters</button>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <footer class="hist_pager">
+                <p class="hist_pager_info">
+                    Showing {{ range().from }}–{{ range().to }} of {{ range().total }} sales
+                    @if (hasFilters()) { (filtered from {{ totalCount() }}) }
+                </p>
+
+                <nav class="hist_pages" aria-label="Pagination">
+                    <button type="button" class="hist_page nav" aria-label="Previous page"
+                            (click)="prevPage()" [disabled]="page() === 1">‹</button>
+                    @for (p of visiblePages(); track $index) {
+                        @if (p === -1) {
+                            <span class="hist_dots" aria-hidden="true">…</span>
+                        } @else {
+                            <button type="button" class="hist_page" [class.active]="p === page()"
+                                    [attr.aria-current]="p === page() ? 'page' : null"
+                                    (click)="goToPage(p)">{{ p }}</button>
+                        }
+                    }
+                    <button type="button" class="hist_page nav" aria-label="Next page"
+                            (click)="nextPage()" [disabled]="page() === totalPages()">›</button>
+                </nav>
+            </footer>
+        </section>
+
+        <!-- ═════════ Detalle de la venta ═════════ -->
+        <aside class="hist_card hist_detail" aria-label="Sale details">
+            @if (selected(); as s) {
+                <div class="hist_detail_top">
+                    <h2>#{{ s.id }}</h2>
+                    <p class="hist_detail_date">{{ s.date | date:'MMM d, y · h:mm:ss a' }}</p>
+                    <div class="hist_tags">
+                        <span class="hist_tag hist_tag--ok">COMPLETED</span>
+                        <span class="hist_tag">
+                            <span class="material-symbols-outlined" aria-hidden="true">{{ s.method === 'cash' ? 'payments' : 'credit_card' }}</span>
+                            {{ methodName(s.method).toUpperCase() }}
+                        </span>
+                        @if (s.demo) { <span class="hist_tag hist_tag--sample">SAMPLE</span> }
+                    </div>
+                </div>
+
+                <div class="hist_detail_items">
+                    <p class="hist_label">Items ({{ itemCount(s) }})</p>
+                    <ul class="hist_items">
+                        @for (it of s.items; track it.id) {
+                            <li>
+                                <div class="hist_item_info">
+                                    <p class="hist_item_name">{{ it.name }}</p>
+                                    <p class="hist_item_meta">{{ it.qty }} @ {{ money(it.price) }}</p>
+                                    <p class="hist_item_sku">ID: {{ it.id }}</p>
+                                </div>
+                                <p class="hist_item_total">{{ money(it.qty * it.price) }}</p>
+                            </li>
+                        }
+                    </ul>
+                </div>
+
+                <div class="hist_detail_bottom">
+                    <dl class="hist_totals">
+                        <div><dt>Subtotal</dt><dd>{{ money(s.subtotal) }}</dd></div>
+                        @if (s.discount > 0) {
+                            <div class="is-discount"><dt>Discount</dt><dd>-{{ money(s.discount) }}</dd></div>
+                        }
+                        <div><dt>Tax ({{ taxPct(s) }}%)</dt><dd>{{ money(s.tax) }}</dd></div>
+                        <div class="is-total"><dt>Total</dt><dd>{{ money(s.total) }}</dd></div>
+                        @if (s.method === 'cash' && s.cashReceived !== null) {
+                            <div class="is-extra"><dt>Cash received</dt><dd>{{ money(s.cashReceived) }}</dd></div>
+                            <div class="is-extra"><dt>Change</dt><dd>{{ money(s.change) }}</dd></div>
+                        }
+                    </dl>
+
+                    <div class="hist_detail_actions">
+                        <button type="button" class="hist_btn" (click)="downloadReceipt(s)">
+                            <span class="material-symbols-outlined" aria-hidden="true">receipt_long</span>
+                            Receipt (.txt)
+                        </button>
+                        <button type="button" class="hist_btn hist_btn--danger-outline" (click)="openDelete(s)">
+                            <span class="material-symbols-outlined" aria-hidden="true">delete</span>
+                            Delete sale
+                        </button>
+                    </div>
+                </div>
+            } @else {
+                <div class="hist_empty hist_empty--panel">
+                    <span class="material-symbols-outlined" aria-hidden="true">shopping_bag</span>
+                    <p>Select a sale to see the products purchased.</p>
+                </div>
+            }
+        </aside>
+    </div>
+
+    <!-- ═════════ Toast ═════════ -->
+    @if (toast(); as message) {
+        <div class="hist_toast" role="status" aria-live="polite">
+            <span class="material-symbols-outlined" aria-hidden="true">check_circle</span>
+            {{ message }}
+        </div>
+    }
+
+    <!-- ═════════ Modal (exportar / eliminar) ═════════ -->
+    <dialog #modal class="hist_modal" aria-labelledby="hist_modal_title"
+            (close)="onModalClosed()" (click)="onBackdropClick($event)">
+        @switch (modalType()) {
+
+            @case ('export') {
+                <div class="hist_modal_card">
+                    <header class="hist_modal_header">
+                        <h2 id="hist_modal_title">Export history</h2>
+                        <button type="button" class="hist_icon_btn" aria-label="Close" (click)="closeModal()">
+                            <span class="material-symbols-outlined" aria-hidden="true">close</span>
+                        </button>
+                    </header>
+
+                    <p class="hist_modal_text">
+                        Exports the <strong>{{ filtered().length }}</strong> sale(s) that match the current filters.
+                    </p>
+
+                    <div class="hist_formats" role="radiogroup" aria-label="Export format">
+                        @for (f of formats; track f.id) {
+                            <button type="button" role="radio" class="hist_format"
+                                    [attr.aria-checked]="exportFormat() === f.id"
+                                    [class.is-active]="exportFormat() === f.id"
+                                    [disabled]="!f.available" (click)="selectFormat(f.id)">
+                                <span class="material-symbols-outlined hist_format_icon" aria-hidden="true">{{ f.icon }}</span>
+                                <span class="hist_format_text">
+                                    <strong>{{ f.label }}</strong>
+                                    <small>{{ f.description }}</small>
+                                </span>
+                                @if (!f.available) { <span class="hist_soon">Coming soon</span> }
+                            </button>
+                        }
+                    </div>
+
+                    <label class="hist_check">
+                        <input type="checkbox" [checked]="includeItems()"
+                               (change)="includeItems.set($any($event.target).checked)">
+                        <span>Include purchased items for each sale</span>
+                    </label>
+
+                    <div class="hist_modal_actions">
+                        <button type="button" class="hist_btn" (click)="closeModal()">Cancel</button>
+                        <button type="button" class="hist_btn hist_btn--primary" data-autofocus
+                                [disabled]="exportFormat() !== 'txt' || filtered().length === 0"
+                                (click)="exportHistory()">
+                            <span class="material-symbols-outlined" aria-hidden="true">download</span>
+                            Export
+                        </button>
+                    </div>
+                </div>
+            }
+
+            @case ('delete') {
+                @if (target(); as t) {
+                    <div class="hist_modal_card">
+                        <div class="hist_modal_icon"><span class="material-symbols-outlined" aria-hidden="true">delete</span></div>
+                        <h2 id="hist_modal_title">Delete this sale?</h2>
+                        <p class="hist_modal_text">
+                            <strong>#{{ t.id }}</strong> · {{ t.date | date:'MMM d, y, h:mm a' }}<br>
+                            {{ itemCount(t) }} item(s) · {{ methodName(t.method) }} · <strong>{{ money(t.total) }}</strong>
+                        </p>
+                        <p class="hist_note">
+                            The sale is permanently removed from the history and from the revenue totals. This cannot be undone.
+                        </p>
+                        <label class="hist_check">
+                            <input type="checkbox" [checked]="restoreStock()"
+                                   (change)="restoreStock.set($any($event.target).checked)">
+                            <span>Return the {{ itemCount(t) }} item(s) to inventory stock</span>
+                        </label>
+                        <div class="hist_modal_actions">
+                            <button type="button" class="hist_btn" data-autofocus (click)="closeModal()">Cancel</button>
+                            <button type="button" class="hist_btn hist_btn--danger" (click)="confirmDelete()">Yes, delete</button>
+                        </div>
+                    </div>
+                }
+            }
+        }
+    </dialog>
 </div>
