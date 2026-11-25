@@ -68,4 +68,8 @@ export class App {
   resetSettings(): void {
     this.settingsService.reset();
   }
+
+  protected togglePrintReceipt(): void {
+    this.settingsService.update({ printReceipt: !this.cfg.printReceipt });
+  }
 }

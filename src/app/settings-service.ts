@@ -6,12 +6,14 @@ export interface AppSettings {
   theme: ThemeMode;
   taxRate: number;        // porcentaje, ej. 8.25
   reduceMotion: boolean;
+  printReceipt: boolean; 
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'system',
   taxRate: 8.25,
   reduceMotion: false,
+  printReceipt: true,
 };
 
 const STORAGE_KEY = 'marketplus-settings';
@@ -78,6 +80,7 @@ export class SettingsService {
         taxRate: typeof raw.taxRate === 'number' && raw.taxRate >= 0 && raw.taxRate <= 30
           ? raw.taxRate : DEFAULT_SETTINGS.taxRate,
         reduceMotion: raw.reduceMotion === true,
+        printReceipt: raw.printReceipt !== false,
       };
     } catch {
       return { ...DEFAULT_SETTINGS };

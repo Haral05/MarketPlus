@@ -64,6 +64,18 @@
       </label>
     </section>
 
+    <div class="settings_row">
+      <div>
+        <p class="settings_row_title" id="print_label">Print receipt after each sale</p>
+        <p class="settings_hint">Opens the printer dialog when a payment is confirmed.</p>
+      </div>
+      <button type="button" class="settings_switch" role="switch"
+              aria-labelledby="print_label"
+              [attr.aria-checked]="cfg.printReceipt"
+              [class.is-on]="cfg.printReceipt"
+              (click)="togglePrintReceipt()"><span></span></button>
+    </div>
+
     <section class="settings_section">
       <h3>Accessibility</h3>
       <div class="settings_row">

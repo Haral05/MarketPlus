@@ -5,6 +5,7 @@ import { GetProductService } from '../get-product-service';
 import { Product } from '../interfaces/product.interface';
 import { SettingsService } from '../settings-service';
 import { SalesHistoryService } from '../sales-history-service';
+import { ReceiptService } from '../receipt-service';
 
 
   
@@ -32,6 +33,8 @@ interface SaleReceipt {
 export class SalesComponent {
   @ViewChild('modal') private modalRef!: ElementRef<HTMLDialogElement>;
   @ViewChild('barcodeInput') private barcodeRef!: ElementRef<HTMLInputElement>;
+
+  private receipts = inject(ReceiptService);
   
   // Scan bar focus F1
   @HostListener('window:keydown', ['$event'])
@@ -312,5 +315,6 @@ export class SalesComponent {
     this.carryEmpty();
     this.productSelected = undefined;
     this.open('success');
+    if (this.settingsServ.settings().printReceipt) this.receipts.print(sale);
   }
 }
